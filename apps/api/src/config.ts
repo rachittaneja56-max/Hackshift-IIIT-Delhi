@@ -30,10 +30,14 @@ const apiEnvironmentSchema = z
     ),
     CLERK_PUBLISHABLE_KEY: optionalText,
     CLERK_SECRET_KEY: optionalText,
+    CLERK_JWT_KEY: optionalText,
     CLERK_AUTHORIZED_PARTIES: optionalText,
     CORS_ORIGINS: optionalText,
     MISTRAL_API_KEY: optionalText,
     MISTRAL_MODEL: optionalText,
+    OPENAI_API_KEY: optionalText,
+    OPENAI_MODEL: optionalText,
+    AI_PROVIDER: z.preprocess(emptyStringToUndefined, z.enum(["openai", "mistral"]).default("openai")),
     AI_ENABLED: z
       .preprocess(
         emptyStringToUndefined,
@@ -50,18 +54,18 @@ const apiEnvironmentSchema = z
         message: "DATABASE_URL is required in production.",
       });
     }
-    if (environment.AI_ENABLED && !environment.MISTRAL_API_KEY) {
+    if (environment.AI_ENABLED && !(environment.AI_PROVIDER === "openai" ? environment.OPENAI_API_KEY : environment.MISTRAL_API_KEY)) {
       context.addIssue({
         code: "custom",
-        path: ["MISTRAL_API_KEY"],
-        message: "MISTRAL_API_KEY is required when AI_ENABLED is true.",
+        path: [environment.AI_PROVIDER === "openai" ? "OPENAI_API_KEY" : "MISTRAL_API_KEY"],
+        message: "The selected provider API key is required when AI_ENABLED is true.",
       });
     }
-    if (environment.AI_ENABLED && !environment.MISTRAL_MODEL) {
+    if (environment.AI_ENABLED && !(environment.AI_PROVIDER === "openai" ? environment.OPENAI_MODEL : environment.MISTRAL_MODEL)) {
       context.addIssue({
         code: "custom",
-        path: ["MISTRAL_MODEL"],
-        message: "MISTRAL_MODEL is required when AI_ENABLED is true.",
+        path: [environment.AI_PROVIDER === "openai" ? "OPENAI_MODEL" : "MISTRAL_MODEL"],
+        message: "The selected provider model is required when AI_ENABLED is true.",
       });
     }
   });

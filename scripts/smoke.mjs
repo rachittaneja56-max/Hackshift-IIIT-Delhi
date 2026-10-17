@@ -66,7 +66,7 @@ assert.deepEqual(
 const config = readApiConfig({ NODE_ENV: "test", DATABASE_URL: "" });
 assert.throws(
   () => readApiConfig({ NODE_ENV: "test", AI_ENABLED: "true" }),
-  /MISTRAL_API_KEY, MISTRAL_MODEL/,
+  /OPENAI_API_KEY, OPENAI_MODEL/,
 );
 assert.throws(
   () => readApiConfig({ NODE_ENV: "production" }),

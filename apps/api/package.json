@@ -8,7 +8,10 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "migrate": "tsx src/db/cli.ts",
+    "test": "tsx --test test/*.test.ts",
+    "test:integration": "tsx --test test/*.integration.ts"
   },
   "dependencies": {
     "@clerk/express": "^2.1.80",
