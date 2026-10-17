@@ -1,0 +1,23 @@
+{
+  "name": "trajectoryos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.6.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=@trajectoryos/contracts && npm run build --workspace=@trajectoryos/api && npm run build --workspace=@trajectoryos/web",
+    "typecheck": "npm run typecheck --workspace=@trajectoryos/contracts && npm run build --workspace=@trajectoryos/contracts && npm run typecheck --workspace=@trajectoryos/api && npm run typecheck --workspace=@trajectoryos/web",
+    "smoke": "npm run build --workspace=@trajectoryos/contracts && npm run build --workspace=@trajectoryos/api && node scripts/smoke.mjs",
+    "test": "node scripts/run-workspace-tests.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}
