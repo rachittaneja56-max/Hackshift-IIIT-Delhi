@@ -5,7 +5,10 @@ import { transaction } from "./transaction.js";
 import { contentManifest } from "../content/index.js";
 import { sha256 } from "./hash.js";
 
-const directory = new URL("../../migrations/", import.meta.url);
+const directory = new URL(
+  import.meta.url.endsWith(".ts") ? "../../migrations/" : "../migrations/",
+  import.meta.url,
+);
 export async function migrate(pool: Pool) {
   const files = (await readdir(directory)).filter(name => /^\d+.*\.sql$/.test(name)).sort();
   await transaction(pool, async client => {

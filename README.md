@@ -1,48 +1,91 @@
 # TrajectoryOs
 
-TrajectoryOs is the HackShift 2026 workspace. This baseline sets up an npm workspaces monorepo and the shared v0.3 API contract. The API and web app are technical scaffolds; product routes and screens have not started.
+TrajectoryOs is the HackShift 2026 learning workspace. The backend implements the v0.3 API for a seeded retry-safe credit lesson and challenge: authenticated drafts, saved HLD/LLD scenes, reviewed implementation variants, real PostgreSQL T1–T7 observations, immutable evidence/history, and evidence-grounded AI feedback. Frontend implementation is owned separately; this backend release does not include browser source changes, and browser Clerk sign-in/Excalidraw save-and-restore remain unverified integration checks.
 
-## Requirements and commands
+The evaluator executes only the three reviewed variants (`atomic`, `credit-first`, `key-only`). It does not execute learner code, grade diagrams or establish authorship, general competence, or hiring suitability. The content and fixture balances are synthetic.
+
+## Requirements and local setup
 
 - Node.js 22.12 or newer
-- npm 11.6.1 (the committed lockfile is generated with npm)
+- npm 11.6.1
+- One PostgreSQL database for both `app` and `challenge_eval` schemas
 
-From the repository root:
+The API enforces PostgreSQL hostname and certificate verification: it normalizes an omitted `sslmode` or the legacy `prefer`, `require`, and `verify-ca` values to `verify-full`, and rejects modes that disable verification.
+
+Install from the repository root:
 
 ```powershell
-npm install
-npm run typecheck
-npm run build
-npm run smoke
-npm test
+npm ci
 ```
 
-`npm run smoke` checks the health routes and representative contract behavior without requiring service credentials. `npm test` runs workspace test scripts when they exist; it currently reports that no test suites are configured. The API and web dev servers run independently:
+Copy `apps/api/.env.example` to `apps/api/.env` and fill the server values. Copy `apps/web/.env.example` to `apps/web/.env.local` and set the browser values. Keep all keys in these ignored files or hosting configuration; only the Clerk publishable key belongs in the browser.
+
+For the current Vite dev script, open the frontend at `http://127.0.0.1:5173`. Use `VITE_API_BASE_URL=http://127.0.0.1:3000`. The API development CORS and Clerk authorized-party defaults now use that same exact origin. `localhost` and `127.0.0.1` are different origins. If you choose another host, configure that exact origin in both `CORS_ORIGINS` and `CLERK_AUTHORIZED_PARTIES` and use it consistently in the browser.
+
+Run the API and web app in separate terminals:
 
 ```powershell
 npm run dev --workspace=@trajectoryos/api
 npm run dev --workspace=@trajectoryos/web
 ```
 
-The API exposes `/health/live`. `/health/ready` returns 503 until `DATABASE_URL` can reach PostgreSQL; it does not claim the app schemas are migrated. Those checks belong to B1.
+Run migrations explicitly before starting the API against a database:
 
-## Workspaces
+```powershell
+npm run migrate --workspace=@trajectoryos/api
+```
 
-- `apps/api` — Express, TypeScript, Clerk, `pg` and the Mistral SDK. B0 includes startup/config validation and infrastructure health only.
-- `apps/web` — React, TypeScript, Vite, Clerk and embedded Excalidraw dependencies. It renders no product UI yet.
-- `packages/contracts` — executable Zod request/response schemas and inferred DTO types for API contract v0.3.
+API startup does not apply schema changes. `/health/live` checks process liveness; `/health/ready` checks database connectivity, the expected migrations, the published challenge manifest, and Clerk configuration.
 
-The v0.3 contract adds nullable-in-draft `artifact.aiCritique` and `artifact.repairJustification` (each nonblank at submission), plus a reviewed `faultyAiSuggestion` challenge field with `source: "curated_fixture"`. The v0.2 routes, envelopes, lifecycle, evaluation model and database topology are carried forward. Parth should review the v0.3 contract schemas before F1 starts.
+## Implemented API
 
-## Environment
+All data routes are under `/api/v1` and require `Authorization: Bearer <Clerk session token>`. Success and error responses include the v0.3 envelope and `meta.isMock: false`. The available routes are:
 
-Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `apps/web/.env.local`. The example files contain variable names with empty values only.
+- `GET /courses`
+- `GET /lessons/:slug/versions/:version`
+- `GET /challenges/:slug/versions/:version`
+- `POST /attempts`, `GET /attempts`, `GET /attempts/:id`
+- `PUT /attempts/:id/draft`
+- `POST /attempts/:id/submit`
+- `GET /evaluations/:id`, `POST /evaluations/:id/retry`
+- `GET /evidence/:id`
+- `GET /evidence/:id/feedback`, `POST /evidence/:id/feedback`
 
-The API will need `DATABASE_URL` for the single Neon PostgreSQL database, Clerk server keys/origins, and `MISTRAL_API_KEY` plus a verified `MISTRAL_MODEL` for live AI feedback. The web app needs `VITE_API_BASE_URL` and the Clerk publishable key. No credentials are included in this repository. B0 build and typecheck do not require these values.
+The API derives user identity from the verified Clerk subject and returns 404 for another user's records. Create requests are idempotent by the caller's stable `clientRequestId`. Draft saves use `expectedRevision`; a stale revision returns 409 with the current revision. Submission freezes the saved artifact, queues the selected reviewed variant, and returns an evaluation ID. The worker records actual PostgreSQL observations and immutable evidence. AI feedback is explicit and cached; it reports `source: "llm"` with provider/model or `source: "rules"` when disabled or unavailable.
 
-## First implementation tasks
+`@trajectoryos/contracts` is the v0.3 wire-contract source. The executable browser examples, Clerk token flow, error states, retry behavior and Excalidraw scene restrictions are in [FRONTEND_INTEGRATION.md](FRONTEND_INTEGRATION.md). The API routes and lifecycle are governed by [architecture/05-api-contract.md](architecture/05-api-contract.md).
 
-- **Backend (Rachit, B1):** complete Clerk bearer verification and PostgreSQL readiness, add the `app` schema migration for users/challenge versions/attempts, then implement authenticated create/read/list/save-draft flows with idempotent creation and revision conflicts. Confirm HLD/LLD save and reload against real PostgreSQL before evaluation or AI work.
-- **Frontend (Parth, F1):** review the v0.3 contract first, then build the desktop learning/workspace shell and Excalidraw HLD/LLD scenes against typed DTO fixtures. Prove scene save/reload behavior and connect to B1's draft endpoints at the first vertical slice.
+## AI configuration
 
-Both developers work directly from `main`; keep ownership within `apps/api` and `apps/web`. Shared schemas, root configuration and the lockfile have one writer, Rachit.
+AI is disabled by default (`AI_ENABLED=false`); feedback then uses a deterministic, clearly labelled rule explanation. To enable the owner-selected OpenAI provider, configure `AI_ENABLED=true`, `AI_PROVIDER=openai`, `OPENAI_API_KEY`, and `OPENAI_MODEL`. `gpt-6-luna` has a recorded live inference smoke in `apps/api/verification/ai-smoke.json`.
+
+Mistral remains an optional explicit provider: set `AI_PROVIDER=mistral`, `AI_ENABLED=true`, `MISTRAL_API_KEY`, and `MISTRAL_MODEL`. Its adapter has transport-double coverage, but a live Mistral call has not been verified. Provider failure does not silently switch providers; the saved result is labelled `source: "rules"`. AI never changes the test verdict or evidence hash.
+
+## Verification and demo smoke
+
+From the repository root:
+
+```powershell
+npm run typecheck
+npm run build
+npm test
+npm run smoke
+npm run smoke:evaluation --workspace=@trajectoryos/api
+npm run test:integration --workspace=@trajectoryos/api
+```
+
+`smoke:evaluation` runs the real atomic T1–T7 suite once against the configured PostgreSQL database, reports wall time and per-test durations, and cleans only its generated fixture run ID. The integration suite also requires the configured PostgreSQL database. It uses generated integration identities and run UUIDs, retains immutable app history/evidence, and deletes only its own generated fixture rows. Neither command substitutes an in-memory database or fabricated evaluation output. `npm run smoke` also checks that a production build contains the reviewed challenge sources needed for published content and suite hashing.
+
+For a local or deployed demo, run migrations as an explicit release step, start the API with the required production environment, check `/health/live` and `/health/ready`, then follow the browser walkthrough in [FRONTEND_INTEGRATION.md](FRONTEND_INTEGRATION.md). The browser Clerk sign-in, two real accounts, Railway/Vercel configuration, and actual Excalidraw refresh/restore still require a real browser and deployed origins; they have not been reported as verified here.
+
+## Railway runtime packaging
+
+Build from the repository root so npm can resolve the workspaces:
+
+```powershell
+npm ci
+npm run build --workspace=@trajectoryos/contracts
+npm run build --workspace=@trajectoryos/api
+```
+
+The API build copies the allowlisted reviewed challenge `.ts` sources to `apps/api/dist/challenge-source/` and the approved SQL files to `apps/api/dist/migrations/`. Compiled content, suite hashing, readiness and the compiled migration command read those packaged directories. Preserve `apps/api/dist/**` in the Railway runtime artifact. Set Railway's service root/build context to the repository root because this is a shared npm workspace; configure `DATABASE_URL`, both Clerk keys, exact frontend origins, `APP_COMMIT_SHA`, and `PORT`. After building and before starting the service, explicitly run `npm run migrate:built --workspace=@trajectoryos/api`; start with `npm run start --workspace=@trajectoryos/api`. Configure the Railway health path as `/health/ready`. See [Railway's shared monorepo guidance](https://docs.railway.com/deployments/monorepo). No deployment was run by this repository audit.

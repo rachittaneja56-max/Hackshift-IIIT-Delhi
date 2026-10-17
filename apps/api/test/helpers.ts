@@ -17,7 +17,7 @@ export const readyArtifact = { hld: scene, lld: scene, decisions: { keyScope: "a
   repairJustification: "Store the key, effect and response in one transaction." };
 
 export async function harness(dependencies: AppDependencies = {}) {
-  const pool = createDatabasePool(process.env.DATABASE_URL);
+  let pool = createDatabasePool(process.env.DATABASE_URL);
   if (!pool) throw new Error("DATABASE_URL required: integration tests never substitute a mock database.");
   try { await migrate(pool); } catch (error) { await pool.end(); throw error; }
   const keys = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -35,16 +35,40 @@ export async function harness(dependencies: AppDependencies = {}) {
     const signature = createSign("RSA-SHA256").update(`${header}.${payload}`).sign(keys.privateKey, "base64url");
     return `${header}.${payload}.${signature}`;
   }
-  const server = createServer(createApp(config, pool, dependencies));
-  server.listen(0, "127.0.0.1"); await once(server, "listening");
-  const address = server.address();
-  if (!address || typeof address === "string") throw new Error("No listening socket");
-  const base = `http://127.0.0.1:${address.port}`;
+  let server = createServer(createApp(config, pool, dependencies));
+  let base = "";
+  async function listen() {
+    server.listen(0, "127.0.0.1"); await once(server, "listening");
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("No listening socket");
+    base = `http://127.0.0.1:${address.port}`;
+  }
+  async function stopServer() {
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+  await listen();
   async function request(path: string, method = "GET", body?: unknown, bearer: string | null = token(), headers = {}) {
     const response = await fetch(base + path, { method, headers: { ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}), ...headers }, body: body !== undefined ? JSON.stringify(body) : undefined });
     return { status: response.status, body: await response.json(), headers: response.headers };
   }
-  return { pool, config, subjects, token, request, base,
-    async close() { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await pool.end(); } };
+  return {
+    get pool() { return pool; },
+    config,
+    subjects,
+    token,
+    request,
+    get base() { return base; },
+    async restart() {
+      await stopServer();
+      await pool.end();
+      const nextPool = createDatabasePool(process.env.DATABASE_URL);
+      if (!nextPool) throw new Error("DATABASE_URL required after API restart.");
+      pool = nextPool;
+      server = createServer(createApp(config, pool, dependencies));
+      await listen();
+    },
+    async close() { await stopServer(); await pool.end(); },
+  };
 }

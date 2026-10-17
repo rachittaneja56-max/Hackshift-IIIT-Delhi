@@ -17,12 +17,19 @@ let shuttingDown = false;
 async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
-  await worker?.stop();
-  server.close(async () => {
-    await pool?.end();
-    process.exit(0);
+  const serverClosed = new Promise<void>((resolve, reject) => {
+    server.close(error => error ? reject(error) : resolve());
   });
+  await worker?.stop();
+  await serverClosed;
+  await pool?.end();
 }
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => {
+    void shutdown().catch(() => {
+      console.error("API shutdown did not complete cleanly.");
+      process.exitCode = 1;
+    });
+  });
+}

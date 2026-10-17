@@ -1,7 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { ChallengeDtoSchema, CourseListDtoSchema, LessonDtoSchema, type VariantId } from "@trajectoryos/contracts";
 import { sha256 } from "../db/hash.js";
-const sourceDirectory = new URL("../../src/challenges/retry-safe-credit/", import.meta.url);
+const sourceDirectory = new URL(
+  import.meta.url.endsWith(".ts")
+    ? "../challenges/retry-safe-credit/"
+    : "../challenge-source/",
+  import.meta.url,
+);
 export const variantFiles = Object.fromEntries(await Promise.all((["credit-first", "key-only", "atomic"] as VariantId[]).map(async id => [id,
   await Promise.all([`${id}.ts`, "shared.ts", "types.ts"].map(async path => ({ path, language: "typescript" as const,
     source: (await readFile(new URL(path, sourceDirectory), "utf8")).replaceAll("\r\n", "\n") }))),

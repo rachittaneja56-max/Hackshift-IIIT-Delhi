@@ -26,7 +26,7 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
     response.setHeader("Cache-Control", "no-store");
     next();
   });
-  const origins = (config.CORS_ORIGINS ?? config.CLERK_AUTHORIZED_PARTIES ?? "http://localhost:5173").split(",").map(s => s.trim());
+  const origins = (config.CORS_ORIGINS ?? config.CLERK_AUTHORIZED_PARTIES ?? "http://127.0.0.1:5173").split(",").map(s => s.trim());
   app.use((request, response, next) => {
     const origin = request.headers.origin;
     response.vary("Origin");

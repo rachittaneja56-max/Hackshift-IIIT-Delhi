@@ -80,5 +80,35 @@ test("B2: real T1-T7 matrix, durable lifecycle, ownership, fencing and immutable
     assert.equal(failed.status, "error"); assert.equal(failed.executionCount, 2); assert.equal(failed.result, null); assert.equal(failed.evidenceId, null);
     assert.equal((await h.request(`/api/v1/evaluations/${old.id}/retry`, "POST", {})).status, 409);
     assert.equal((await h.request(`/api/v1/attempts/${otherAttempt}`)).body.data.status, "execution_error");
+    let runnerStarted!: () => void;
+    const runnerEntered = new Promise<void>(resolve => { runnerStarted = resolve; });
+    const gracefulAttempt = await createReady();
+    const gracefulSubmission = await h.request(`/api/v1/attempts/${gracefulAttempt}/submit`, "POST", { expectedRevision: 2 });
+    const gracefulWorker = new EvaluationWorker(h.pool, h.config, async (_pool, _variant, _runId, signal) => {
+      runnerStarted();
+      await new Promise<never>((_resolve, reject) => signal.addEventListener("abort", () =>
+        reject(new RunError("RUNNER_RESTARTED", "Controlled graceful stop.")), { once: true }));
+    });
+    gracefulWorker.start();
+    await runnerEntered;
+    const shutdownStarted = Date.now();
+    await gracefulWorker.stop();
+    assert.ok(Date.now() - shutdownStarted < 30000, "worker stop should abort and settle promptly");
+    const stoppedEvaluation = (await h.request(`/api/v1/evaluations/${gracefulSubmission.body.data.id}`)).body.data;
+    assert.equal(stoppedEvaluation.status, "error");
+    assert.equal(stoppedEvaluation.error.code, "RUNNER_RESTARTED");
+    assert.equal(stoppedEvaluation.result, null);
+    assert.equal(stoppedEvaluation.evidenceId, null);
+    await h.restart();
+    const restoredEvidence = await h.request(`/api/v1/evidence/${completed.evidenceId}`);
+    assert.equal(restoredEvidence.status, 200);
+    assert.deepEqual(restoredEvidence.body.data, evidence);
+    const restoredAttempt = await h.request(`/api/v1/attempts/${attemptId}`);
+    assert.equal(restoredAttempt.status, 200);
+    assert.equal(restoredAttempt.body.data.evidenceId, completed.evidenceId);
+    const restoredHistory = await h.request("/api/v1/attempts?limit=100");
+    assert.ok(restoredHistory.body.data.items.some((item: { id: string; evidenceId: string | null }) =>
+      item.id === attemptId && item.evidenceId === completed.evidenceId));
+    console.log("Persisted evidence, attempt and history fetched after API and PostgreSQL pool restart.");
   } finally { await h.close(); }
 });

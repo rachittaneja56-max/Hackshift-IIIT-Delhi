@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { once } from "node:events";
 import { createServer } from "node:http";
 import { createApp } from "../apps/api/dist/app.js";
@@ -11,6 +12,8 @@ import {
   FaultyAiSuggestionSchema,
   SubmissionReadyArtifactSchema,
 } from "../packages/contracts/dist/index.js";
+import { contentManifest, variantFiles } from "../apps/api/dist/content/index.js";
+import { suiteSha256 } from "../apps/api/dist/challenges/retry-safe-credit/suite.js";
 
 const draftExample = JSON.parse(
   await readFile(
@@ -51,6 +54,17 @@ const readyArtifact = {
   repairJustification: "The atomic variant stores the credit and response together.",
 };
 SubmissionReadyArtifactSchema.parse(readyArtifact);
+assert.equal(suiteSha256.length, 64, "built challenge suite source hash must be available");
+for (const variant of contentManifest.challenge.variants) {
+  assert.deepEqual(variant.files, variantFiles[variant.id], `built source package must preserve ${variant.id} content`);
+  assert.ok(variant.files.every(file => file.source.length > 0), `${variant.id} source content must be present`);
+}
+const packagedMigrations = await readdir(new URL("../apps/api/dist/migrations/", import.meta.url));
+assert.deepEqual(packagedMigrations.filter(name => /^\d+.*\.sql$/.test(name)).sort(), [
+  "001_foundation.sql",
+  "002_evaluation.sql",
+  "003_feedback.sql",
+]);
 
 const blankReasoning = SubmissionReadyArtifactSchema.safeParse({
   ...readyArtifact,
@@ -98,5 +112,5 @@ try {
 }
 
 console.log(
-  `Smoke checks passed: API health/readiness and v${API_CONTRACT_VERSION} draft/submission schemas.`,
+  `Smoke checks passed: API health/readiness, v${API_CONTRACT_VERSION} schemas, and packaged challenge/migration runtime assets.`,
 );

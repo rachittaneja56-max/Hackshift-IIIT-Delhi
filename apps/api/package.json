@@ -6,12 +6,14 @@
   "main": "./dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/package-runtime-assets.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "start": "node dist/index.js",
     "migrate": "tsx src/db/cli.ts",
+    "migrate:built": "node dist/db/cli.js",
     "test": "tsx --test test/*.test.ts",
     "test:integration": "tsx --test --test-concurrency=1 test/*.integration.ts",
+    "smoke:evaluation": "tsx src/challenges/retry-safe-credit/smoke.ts",
     "smoke:ai": "tsx src/ai/smoke.ts"
   },
   "dependencies": {

@@ -9,7 +9,7 @@ export function clerkAuthentication(config: ApiConfig): RequestHandler {
   const unauthorized = () => new ApiError(401, "UNAUTHENTICATED", "Sign in with a valid Clerk bearer token.");
   const middleware = config.CLERK_SECRET_KEY && config.CLERK_PUBLISHABLE_KEY ? clerkMiddleware({
     secretKey: config.CLERK_SECRET_KEY, publishableKey: config.CLERK_PUBLISHABLE_KEY,
-    authorizedParties: (config.CLERK_AUTHORIZED_PARTIES ?? config.CORS_ORIGINS ?? "http://localhost:5173").split(",").map(s => s.trim()),
+    authorizedParties: (config.CLERK_AUTHORIZED_PARTIES ?? config.CORS_ORIGINS ?? "http://127.0.0.1:5173").split(",").map(s => s.trim()),
     jwtKey: config.CLERK_JWT_KEY,
   }) : null;
   return (request, response, next) => {

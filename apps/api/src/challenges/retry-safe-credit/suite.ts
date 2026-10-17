@@ -8,14 +8,21 @@ import { variantFiles } from "../../content/index.js";
 import { createVariant, freshVariant } from "./registry.js";
 import type { CreditInput, CreditResponse, CreditHooks } from "./types.js";
 
+type OperationState = { account_id: string; key: string; operation_id: string; response: CreditResponse | null };
+type LedgerState = { account_id: string; operation_id: string; amount_minor: number };
+type DatabaseState = { balances: Record<string, number>; operations: OperationState[]; ledger: LedgerState[] };
+
 export class RunError extends Error {
   constructor(public code: string, message: string) { super(message); }
 }
 class InjectedFault extends Error {}
 export const suiteVersion = "retry-safe-credit-v1";
+const challengeSourceDirectory = new URL(
+  import.meta.url.endsWith(".ts") ? "./" : "../../challenge-source/",
+  import.meta.url,
+);
 export const suiteSha256 = sha256(await Promise.all(["suite", "registry"].map(async name =>
-  (await readFile(new URL(`../../../src/challenges/retry-safe-credit/${name}.ts`, import.meta.url), "utf8")).replaceAll("\r\n", "\n"))));
-// The URL above resolves from src/challenges/retry-safe-credit AND dist/challenges/retry-safe-credit.
+  (await readFile(new URL(`${name}.ts`, challengeSourceDirectory), "utf8")).replaceAll("\r\n", "\n"))));
 
 export async function cleanupRun(pool: Pool, runId: string) {
   await pool.query("DELETE FROM challenge_eval.ledger WHERE run_id=$1", [runId]);
@@ -37,20 +44,30 @@ export async function runSuite(pool: Pool, variantId: VariantId, runId: string =
   }
   const input = (scenario: string, overrides: Partial<CreditInput> = {}): CreditInput => ({ runId, scenario, accountId: "A", key: "retry-key", amountMinor: 100, ...overrides });
   const invoke = (i: CreditInput, hooks?: CreditHooks) => withClient(client => createVariant(variantId)(client, i, hooks));
-  async function state(scenario: string) {
+  async function state(scenario: string): Promise<DatabaseState> {
     return withClient(async client => {
-      const accounts = (await client.query("SELECT account_id,balance_minor FROM challenge_eval.accounts WHERE run_id=$1 AND scenario=$2 ORDER BY account_id", [runId, scenario])).rows;
-      const operations = (await client.query("SELECT account_id,key,operation_id,response FROM challenge_eval.operations WHERE run_id=$1 AND scenario=$2 ORDER BY account_id,key", [runId, scenario])).rows;
-      const ledger = (await client.query("SELECT account_id,operation_id,amount_minor FROM challenge_eval.ledger WHERE run_id=$1 AND scenario=$2 ORDER BY account_id,operation_id", [runId, scenario])).rows;
-      return { balances: Object.fromEntries(accounts.map(row => [row.account_id, Number(row.balance_minor)])),
-        operations, ledger: ledger.map(row => ({ ...row, amount_minor: Number(row.amount_minor) })) };
+      const row = (await client.query(`SELECT
+        COALESCE((SELECT jsonb_object_agg(account_id,balance_minor) FROM (
+          SELECT account_id,balance_minor FROM challenge_eval.accounts WHERE run_id=$1 AND scenario=$2 ORDER BY account_id
+        ) AS account_rows), '{}'::jsonb) AS balances,
+        COALESCE((SELECT jsonb_agg(jsonb_build_object('account_id',account_id,'key',key,'operation_id',operation_id,'response',response)
+          ORDER BY account_id,key) FROM challenge_eval.operations WHERE run_id=$1 AND scenario=$2), '[]'::jsonb) AS operations,
+        COALESCE((SELECT jsonb_agg(jsonb_build_object('account_id',account_id,'operation_id',operation_id,'amount_minor',amount_minor)
+          ORDER BY account_id,operation_id) FROM challenge_eval.ledger WHERE run_id=$1 AND scenario=$2), '[]'::jsonb) AS ledger`,
+      [runId, scenario])).rows[0];
+      return { balances: row.balances as Record<string, number>, operations: row.operations as OperationState[],
+        ledger: (row.ledger as Array<Omit<LedgerState, "amount_minor"> & { amount_minor: number | string }>).map(entry =>
+          ({ ...entry, amount_minor: Number(entry.amount_minor) })) };
     });
   }
-  const complete = (s: Awaited<ReturnType<typeof state>>, counts: number, balances: Record<string, number>, responses: CreditResponse[]) =>
+  const complete = (s: DatabaseState, counts: number, balances: Record<string, number>, responses: CreditResponse[]) =>
     s.operations.length === counts && s.ledger.length === counts && sha256(s.balances) === sha256(balances) &&
     responses.every(r => r.status === 201 && s.operations.some(o => sha256(o.response) === sha256(r))) &&
-    s.operations.every(o => o.response?.status === 201 && o.response.body.operationId === o.operation_id &&
-      s.ledger.some(l => l.operation_id === o.operation_id && l.amount_minor === o.response.body.amountMinor)) &&
+    s.operations.every(o => {
+      const response = o.response;
+      return response !== null && response.status === 201 && response.body.operationId === o.operation_id &&
+        s.ledger.some(l => l.operation_id === o.operation_id && l.amount_minor === response.body.amountMinor);
+    }) &&
     Object.entries(s.balances).every(([account, balance]) => balance === 1000 + s.ledger.filter(l => l.account_id === account).reduce((total, row) => total + row.amount_minor, 0));
   async function concurrent(first: CreditInput, second: CreditInput) {
     // Both connections are acquired before release. No latch occurs after a database lock.
@@ -77,12 +94,13 @@ export async function runSuite(pool: Pool, variantId: VariantId, runId: string =
   }
   const tests: EvaluationResult["tests"] = [];
   try {
+    await withClient(client => client.query(`INSERT INTO challenge_eval.accounts(run_id,scenario,account_id,balance_minor)
+      SELECT $1,'T'||test.number::text,account.account_id,1000 FROM generate_series(1,7) AS test(number)
+      CROSS JOIN (VALUES ('A'),('B')) AS account(account_id)`, [runId]));
     for (let number = 1; number <= 7; number++) {
       signal.throwIfAborted();
       const id = `T${number}`;
       const started = performance.now();
-      await withClient(c => c.query(`INSERT INTO challenge_eval.accounts(run_id,scenario,account_id,balance_minor)
-        VALUES ($1,$2,'A',1000),($1,$2,'B',1000)`, [runId, id]));
       let passed = false;
       let observed: unknown;
       let expected: unknown;

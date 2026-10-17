@@ -126,4 +126,48 @@ Feedback is explicit: POST `{}` to generate, poll GET when status is generating.
 - B2: `3136d7693829c9ce95b8e8b286c76e0001c8718e`.
 - Final backend implementation: `7e57381f11da1d14875ee0f5f5db2f552a8e0b7f`.
 
-This documentation-only follow-up records the final implementation SHA. Resolve the handoff commit itself with `git log -1 --format=%H -- BACKEND_HANDOFF.md`. No commits were pushed.
+This handoff records the B1–B3 implementation above and the B4 audit below. Resolve its latest commit with `git log -1 --format=%H -- BACKEND_HANDOFF.md`.
+
+## B4 — backend audit and integration readiness (2026-10-17)
+
+Starting point: clean `main` at reviewed commit `8703716`. The v0.3 wire contract and published challenge v1 manifest remain in place; no route, DTO or SQL migration content changed.
+
+B1–B3 verification above is preserved from the prior handoff. The B4 command results below were observed during this audit.
+
+### Findings and corrections
+
+- **High — browser/deployment acceptance remains unverified.** The API integration tests use locally signed Clerk session JWTs, but no browser sign-in, two real accounts, deployed origins, Railway/Vercel release or Excalidraw editor round trip was run. `FRONTEND_INTEGRATION.md` gives the exact `useAuth().getToken()` bearer flow and the browser verification steps.
+- **High — the current shared workspace build is blocked by frontend-owned work.** `npm run typecheck` reports `.ts` import-extension errors in `apps/web/src/attempts/save-queue.ts` and a missing `override` in `apps/web/src/components/ui.tsx`; `npm run build` reports missing `apps/web/src/styles.css` imported from `main.tsx`. Those web files are untracked and outside this backend change; they were left untouched and unstaged. The API-only typecheck/build and backend smoke pass.
+- **Medium — database latency varied enough to hit the worker limit.** A high-latency integration run had atomic test durations of about 10–21 seconds each; the worker correctly recorded `RUN_TIMEOUT` at its two-minute bound, with no result or evidence. The evaluator now batches all independent fixture-account setup into one query and reads balances/operations/ledger for each assertion through one SQL snapshot. The independent-client T3 gate, reviewed variant transactions, seven test cases, assertions and run-scoped cleanup are unchanged. The suite hash records the updated runner source; variant source hashes and the published challenge manifest remain unchanged.
+- **Medium — evidence has no exported shared TypeScript schema.** The API returns the documented evidence snapshot shape, but `packages/contracts` exports no `EvidenceDtoSchema` or `EvidenceDto` type. The frontend guide includes a local response type; adding a shared schema would require the normal shared-contract review.
+- **Low — live Mistral is not verified.** The configured/owner-selected provider is OpenAI. A live OpenAI inference is recorded in `apps/api/verification/ai-smoke.json`; B4 did not send another provider request. Mistral has transport-double coverage only.
+
+The configured URL used a legacy `sslmode=require`, which emitted node-postgres's upcoming mode-semantics warning. Pool creation now normalizes legacy/default modes to explicit `sslmode=verify-full` and rejects settings that disable certificate verification. A real compiled migration command and evaluation smoke were rerun through this normalized connection.
+
+The local Vite script binds `127.0.0.1:5173`. API CORS and default Clerk `authorizedParties` now use that same origin, and the API `.env.example` states it explicitly. The current local Clerk origin was already configured for `127.0.0.1`; the CORS variable is unset and therefore uses the matching fallback. A regression test confirms `127.0.0.1` is accepted and `localhost` is rejected by the default allowlist.
+
+The API build now packages the seven allowlisted challenge `.ts` files in `apps/api/dist/challenge-source/` and the existing approved SQL migrations in `apps/api/dist/migrations/`. Compiled content loading, suite hashing, readiness and the built migration command use those package directories. `npm run smoke` imports the compiled modules and verifies the challenge sources, suite hash and migration files are present. Railway must use the repository root for this shared npm workspace, retain `apps/api/dist/**`, run `npm run migrate:built --workspace=@trajectoryos/api` explicitly after build and before start, then run the API start command. No Railway deployment was run.
+
+Graceful shutdown now stops accepting new HTTP connections, stops the worker, waits for in-flight HTTP work and then closes the pool. The real PostgreSQL integration test starts a worker on a queued evaluation, aborts it through `stop()`, and verifies `RUNNER_RESTARTED` with no verdict/evidence. It also closes/recreates the API server and PostgreSQL pool, then fetches the same persisted evidence, attempt and history.
+
+### B4 observed verification
+
+| Command | Observed result |
+| --- | --- |
+| `npm run typecheck --workspace=@trajectoryos/api` | Passed |
+| `npm run typecheck` | Currently fails in Parth-owned untracked web files: `save-queue.ts` uses `.ts` import extensions; `components/ui.tsx` needs an `override` modifier |
+| `npm run build` | API/contracts build passed; Vite build currently fails because Parth-owned `apps/web/src/main.tsx` imports missing `styles.css` |
+| `npm test` | Passed; 6 unit/boundary tests, 0 failures |
+| `npm run smoke` | Passed; health, v0.3 schemas, packaged variant sources, suite hash and migration files |
+| `npm run migrate:built --workspace=@trajectoryos/api` | Passed; verified existing migrations 001–003 through the packaged runtime |
+| `npm run smoke:evaluation --workspace=@trajectoryos/api` | Real PostgreSQL atomic T1–T7 passed in 34.976 seconds (T3 4.700 seconds) and 27.088 seconds (T3 4.799 seconds) |
+| `npm run test:integration --workspace=@trajectoryos/api` | Passed; B1, B2 and B3 integration files, 3 tests, 0 failures, 0 skips; 290.273 seconds total |
+| `npx tsx --test --test-concurrency=1 test/evaluation.integration.ts` from `apps/api` | Passed after adding graceful-stop assertion; 1 test, 0 failures, 0 skips; 154.805 seconds |
+
+The persisted atomic evaluation from the full integration run completed in 30.889 seconds; T3 took 2.458 seconds. These are observed runs against the configured hosted database, not a controlled benchmark. One high-latency run took about 10–21 seconds per T case and hit the worker's two-minute cap; after query batching, measured atomic runs were 27–35 seconds. Database variability remains material, so do not present one timing as guaranteed.
+
+The root `README.md` now describes the implemented backend and OpenAI/Mistral configuration. `FRONTEND_INTEGRATION.md` contains typed route examples, revision/error/retry handling, history/evidence/feedback flow, Excalidraw fields and serialization constraints, and loading/pending/error states. It does not claim a browser result.
+
+### Next backend work if MVP+ is approved
+
+If owners select P1 JD mapping, first approve a versioned contract addition for the owner-only `POST /evidence/:id/jd-mapping` request/response (including the 8,000-character bound, evidence-reference rules and no-score limitation). Then design an additive persistence migration keyed to owned evidence and prompt version, implement the bounded provider/rules path and concurrency/cache behavior, and add real PostgreSQL ownership/persistence tests plus provider validation/fallback tests. If owners select a mentor packet preview instead, no backend endpoint or migration is needed; the frontend can compose the existing owner-visible evidence. No MVP+ feature was implemented in B4.
