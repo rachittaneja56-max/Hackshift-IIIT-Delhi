@@ -1,5 +1,18 @@
 # TrajectoryOs frontend handoff
 
+## Excalidraw maintenance — 18 October 2026
+
+Scoped files: `src/drawing/NativeScene.tsx`, `src/drawing/Scene.tsx`, new `src/drawing/scene-session.ts`, `src/attempts/workspace.tsx` (editor key only), `src/styles.css`, `test/core.test.mts`, and this handoff. Pre-existing scene serialization, API, Vite and dependency edits were preserved.
+
+- Scoped host element/form styles away from native Excalidraw controls, corrected dark control accents and removed forced mobile page minimum heights.
+- Added a scene session boundary: initialization and camera/tool notifications do not dirty drafts; acknowledged edits retain the mounted editor; explicit server/device replacements update the canvas and clear obsolete native history. Removed cleanup-time scene writes and editability-driven remounts.
+- Restored drawings scroll into view. Binding repair receives a copied scene. Unsupported recovered data stays intact until explicit removal; unsupported clipboard content is rejected before insertion. Canvas background editing is hidden because the wire contract persists elements only.
+- Editor load/render failures are contained within the drawing area so the surrounding lab controls remain accessible.
+- Verified `npm test --workspace=@trajectoryos/web` (23 passed), `npm run typecheck --workspace=@trajectoryos/web`, `npm run build --workspace=@trajectoryos/web`, and `git diff --check -- apps/web`. A local editor font request returned HTTP 200 with `font/woff2`. Build retains the existing large-chunk warning. A rerun overlapped another task's dependency installation and failed on incomplete dependencies; the final rerun passed after that installation finished. Tests cover the frontend scene/save models and SSR; they are not native browser or PostgreSQL integration tests.
+- Native visual/gesture verification remains pending: the computer-use inventory was empty and opening the local website returned `Browser is not available: iab`, including after the Browser mention. No public deployment or backend/shared-contract change was made by this maintenance task. Other ongoing workspace changes were preserved.
+
+---
+
 17 October 2026. Frontend implementation changes are inside `apps/web/**`. The frontend will be published on `frontend/trajectoryos-app`; no public deployment, migration, shared-contract edit or root lockfile edit was performed.
 
 ## Baseline and ownership

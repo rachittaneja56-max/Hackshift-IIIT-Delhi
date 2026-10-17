@@ -9,14 +9,31 @@ function bounded(value: unknown, depth = 0): boolean {
   if (typeof value === 'object') return Object.entries(value).length <= 100 && Object.entries(value).every(([key, item]) => key.length <= 100 && !['__proto__', 'prototype', 'constructor', 'files', 'fileId'].includes(key) && bounded(item, depth + 1));
   return false;
 }
+const boundedTimestamp = 1e12;
+function normalizeUpdated(elements: unknown[]): Scene['elements'] {
+  const copied = JSON.parse(JSON.stringify(elements)) as Scene['elements'];
+  for (const element of copied) if (typeof element.updated === 'number' && Math.abs(element.updated) > boundedTimestamp) element.updated = Math.sign(element.updated) * boundedTimestamp;
+  return copied;
+}
 export function sceneError(scene: Scene | null): string | null {
   if (!scene) return null;
   if (!SceneSchema.safeParse(scene).success) return 'A scene may contain at most 200 elements.';
-  for (const e of scene.elements) if (typeof e.id !== 'string' || !e.id.length || e.id.length > 128 || typeof e.type !== 'string' || !drawableTypes.has(e.type) || !bounded(e) || (e.link !== undefined && e.link !== null)) return 'Use simple shapes, text, arrows, lines and freehand only. Remove images, frames, embeds and links (including deleted unsupported elements), or undo the last import. Your drawing remains on this device.';
+  for (const [index, element] of scene.elements.entries()) {
+    const reason = sceneElementError(element);
+    if (reason) return `Element ${index + 1}: ${reason} Your drawing remains on this device.`;
+  }
   return null;
 }
-// Retain deletion tombstones, IDs and vendor bindings verbatim. Unsupported content is never silently filtered.
-export function serializeElements(elements: readonly unknown[]): Scene { return { engine: 'excalidraw', formatVersion: 1, elements: JSON.parse(JSON.stringify(elements)) as Scene['elements'] }; }
+export function sceneElementError(element: Record<string, unknown>): string | null {
+  if (typeof element.id !== 'string' || !element.id.length || element.id.length > 128) return 'Invalid element identifier.';
+  if (typeof element.type !== 'string' || !drawableTypes.has(element.type)) return `Unsupported element type “${String(element.type)}”. Use simple shapes, text, arrows, lines and freehand only.`;
+  if (!bounded(element)) return 'Element data exceeds the supported safety limits.';
+  if (element.link !== undefined && element.link !== null) return 'Linked elements are not supported.';
+  return null;
+}
+// Retain deletion tombstones, IDs and bindings. Excalidraw's millisecond `updated` timestamp is
+// normalized to the API's documented numeric bound; it is not used for collaboration here.
+export function serializeElements(elements: readonly unknown[]): Scene { return { engine: 'excalidraw', formatVersion: 1, elements: normalizeUpdated([...elements]) }; }
 export function artifactError(artifact: Artifact, revision = 1): string | null {
   const parsed = ArtifactSchema.safeParse(artifact);
   if (!parsed.success) return parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
@@ -33,7 +50,7 @@ export function recoveryArtifact(value: unknown): Artifact {
   const scene = (candidate: unknown): Scene | null => {
     if (candidate === null) return null;
     if (!candidate || typeof candidate !== 'object' || !('engine' in candidate) || candidate.engine !== 'excalidraw' || !('formatVersion' in candidate) || candidate.formatVersion !== 1 || !('elements' in candidate) || !Array.isArray(candidate.elements) || !candidate.elements.every(e => e && typeof e === 'object' && !Array.isArray(e))) throw new Error('Invalid recovery scene.');
-    return { engine: 'excalidraw', formatVersion: 1, elements: candidate.elements };
+    return { engine: 'excalidraw', formatVersion: 1, elements: normalizeUpdated(candidate.elements) };
   };
   return { ...base, hld: scene(value.hld), lld: scene(value.lld) };
 }

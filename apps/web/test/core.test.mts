@@ -6,6 +6,7 @@ import { SaveQueue } from '../src/attempts/save-queue.ts';
 import { artifactError, recoveryArtifact, sceneError, serializeElements } from '../src/lib/scenes.ts';
 import { feedbackLabel, observationSummary } from '../src/lib/presentation.ts';
 import { mentorPacket } from '../src/previews/model.ts';
+import { SceneSession } from '../src/drawing/scene-session.ts';
 
 const empty = () => ({ hld: null, lld: null, decisions: { keyScope: null, atomicity: null, payloadConflict: null }, variantId: null, aiCritique: null, repairJustification: null });
 const id = '11111111-1111-4111-8111-111111111111';
@@ -31,6 +32,62 @@ test('F1: unsupported elements, links, oversized scenes and request bytes are re
   assert.ok(sceneError(serializeElements([shape('file', { fileId: 'secret' })])));
   assert.ok(sceneError(serializeElements(Array.from({ length: 201 }, (_, i) => shape(String(i))))));
   const huge = { ...empty(), hld: serializeElements(Array.from({ length: 100 }, (_, i) => shape(String(i), { text: 'z'.repeat(15000) }))) }; assert.match(artifactError(huge), /1 MiB/);
+});
+
+test('native scene initialization and camera/tool notifications do not dirty a draft', () => {
+  const saved = serializeElements([shape('saved')]);
+  const restored = [shape('saved', { index: 'a0', updated: Date.now() })];
+  const session = new SceneSession(saved, restored);
+  assert.equal(session.change(restored), null);
+  assert.equal(session.change(structuredClone(restored)), null);
+  assert.equal(session.needsReplacement(saved), false);
+  const edited = [...restored, shape('new')];
+  assert.deepEqual(session.change(edited), serializeElements(edited));
+  // Parent echoes and save acknowledgements must preserve native undo/selection.
+  assert.equal(session.needsReplacement(serializeElements(edited)), false);
+  assert.equal(session.change(edited), null);
+});
+
+test('server/device scene replacement resets the native baseline without writing it back', () => {
+  const first = serializeElements([shape('first')]), replacement = serializeElements([shape('server')]);
+  const session = new SceneSession(first, first.elements);
+  session.change(first.elements);
+  const local = [shape('local')];
+  assert.deepEqual(session.change(local), serializeElements(local));
+  session.needsReplacement(serializeElements(local));
+  assert.equal(session.needsReplacement(replacement), true);
+  const restored = [shape('server', { index: 'a0' })];
+  session.reset(restored);
+  assert.equal(session.change(restored), null);
+  assert.equal(session.change(restored), null);
+  assert.deepEqual(session.change([...restored, shape('after-recovery')]), serializeElements([...restored, shape('after-recovery')]));
+  assert.equal(session.needsReplacement(null), true);
+  session.reset([]);
+  assert.equal(session.change([]), null);
+  assert.deepEqual(session.change([shape('fresh')]), serializeElements([shape('fresh')]));
+});
+
+test('HLD and LLD changes stay independent and preserve deletion/undo snapshots', () => {
+  const hld = new SceneSession(null, []), lld = new SceneSession(null, []);
+  hld.change([]); lld.change([]);
+  const hldScene = hld.change([shape('hld', { updated: Date.now() })]);
+  const lldScene = lld.change([shape('lld')]);
+  assert.equal(hld.needsReplacement(hldScene), false);
+  assert.equal(lld.needsReplacement(lldScene), false);
+  const deleted = hld.change([shape('hld', { updated: Date.now(), version: 2, isDeleted: true })]);
+  assert.equal(deleted.elements[0].isDeleted, true);
+  assert.equal(lld.change(lldScene.elements), null);
+  assert.deepEqual(hld.change(hldScene.elements), hldScene);
+});
+
+test('native timestamps fit the existing API bound without mutating geometry, bindings or recovery', () => {
+  const elements = [shape('box', { updated: Date.now(), boundElements: [{ id: 'label', type: 'text' }] })];
+  const original = structuredClone(elements), scene = serializeElements(elements);
+  assert.deepEqual(elements, original);
+  assert.equal(sceneError(scene), null);
+  assert.equal(scene.elements[0].updated, 1e12);
+  assert.deepEqual(scene.elements[0].boundElements, elements[0].boundElements);
+  assert.deepEqual(recoveryArtifact({ ...empty(), hld: { engine: 'excalidraw', formatVersion: 1, elements } }).hld, scene);
 });
 test('F1: API prefix, fresh token, envelope validation and ownership 404 stay honest', async () => {
   assert.equal(apiOrigin('https://api.example.com/api/v1/'), 'https://api.example.com/api/v1'); assert.throws(() => apiOrigin('https://example.com/unapproved'));
