@@ -38,3 +38,23 @@ test('History records make drafts, completed runs and execution errors distinct'
   assert.match(html, /no test verdict/);
   assert.match(html, /aria-label="Filter attempts"/);
 });
+test('Mentor preview formats the selected packet and labels it as unsent', async () => {
+  const { MentorPacketContents } = await server.ssrLoadModule('/src/previews/mentor.tsx');
+  const packet = { provenance: 'local-demo', attemptId: 'attempt-1', evidenceId: 'evidence-1', artifactSource: 'immutable evidence', question: 'Which write belongs in the transaction?', hld: { elements: [{ type: 'rectangle' }] }, aiCritique: 'selected critique', tests: [{ id: 'T5', status: 'failed' }] };
+  const artifact = { hld: { elements: [{ type: 'rectangle' }] }, lld: null };
+  const html = renderToStaticMarkup(createElement(MentorPacketContents, { packet, selected: ['hld', 'aiCritique', 'T5'], artifact }));
+  assert.match(html, /Prepared review request/);
+  assert.match(html, /Private · not sent/);
+  assert.match(html, /immutable evidence/);
+  assert.match(html, /Which write belongs in the transaction/);
+  assert.match(html, /1 saved drawing elements/);
+  assert.match(html, /T5/);
+});
+test('Career review stepper points to the next incomplete step', async () => {
+  const { CareerSteps } = await server.ssrLoadModule('/src/previews/career.tsx');
+  const html = renderToStaticMarkup(createElement(CareerSteps, { stage: 'review', complete: ['job', 'evidence'] }));
+  assert.match(html, /Add a job description/);
+  assert.match(html, /Choose evidence/);
+  assert.match(html, /Review requirements/);
+  assert.match(html, /aria-current="step"/);
+});

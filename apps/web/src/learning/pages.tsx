@@ -26,7 +26,7 @@ function SubjectCatalog() {
 function LearningBridge() {
   return <section className="learning-bridge" aria-labelledby="bridge-heading">
     <div><span className="eyebrow">From concept to investigation</span><h2 id="bridge-heading">Follow one failure from the request to the database.</h2><p>A timeout leaves the client unsure whether a write committed. The lab asks how a retry can safely return the original result.</p></div>
-    <div className="bridge-flow" role="img" aria-label="HTTP retries and PostgreSQL transaction boundaries lead to the retry-safe credits lab.">
+    <div className="bridge-flow" role="group" aria-label="HTTP retries and PostgreSQL transaction boundaries lead to the retry-safe credits lab.">
       <div><span>01</span><strong>HTTP retries</strong><small>The same operation may arrive again.</small></div><span className="bridge-plus" aria-hidden="true">+</span>
       <div><span>02</span><strong>PostgreSQL transactions</strong><small>Related writes commit or roll back together.</small></div><span className="bridge-arrow" aria-hidden="true">→</span>
       <Link href="/lab"><span>Engineering lab</span><strong>Retry-safe credits</strong><small>Compare reviewed implementations against seven disclosed checks.</small></Link>

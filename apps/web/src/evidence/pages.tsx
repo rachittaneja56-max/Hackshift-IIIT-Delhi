@@ -37,8 +37,8 @@ export function HistoryRecords({ items, filter, onFilter }: { items: AttemptSumm
   });
 
   return <section className="history-records" aria-label="Attempt history">
-    <div className="history-filters" role="tablist" aria-label="Filter attempts">{filters.map(option => <button key={option.id} type="button" role="tab" id={`history-tab-${option.id}`} aria-selected={filter === option.id} aria-controls="history-results" onClick={() => onFilter(option.id)}>{option.label}<span>{counts[option.id]}</span></button>)}</div>
-    <div id="history-results" role="tabpanel" aria-labelledby={`history-tab-${filter}`} className="history-list">
+    <div className="history-filters" role="group" aria-label="Filter attempts">{filters.map(option => <button key={option.id} type="button" aria-pressed={filter === option.id} onClick={() => onFilter(option.id)}>{option.label}<span>{counts[option.id]}</span></button>)}</div>
+    <div id="history-results" className="history-list" aria-live="polite">
       {visible.length ? visible.map(item => {
         const state = historyLabel(item.status);
         return <article className={`history-row history-${item.status}`} key={item.id}>
