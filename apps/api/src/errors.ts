@@ -17,6 +17,7 @@ export const errorHandler: ErrorRequestHandler = (error, _request, response, _ne
   if (error?.type === "entity.too.large") safe = new ApiError(413, "PAYLOAD_TOO_LARGE", "JSON requests are limited to 1 MiB.");
   if (error?.type === "entity.parse.failed") safe = new ApiError(422, "VALIDATION_FAILED", "Malformed JSON.");
   if (["ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "57P01", "53300", "08006", "08001"].includes(error?.code)) safe = databaseUnavailable();
+  if (safe.status === 429) response.setHeader("Retry-After", "2");
   response.status(safe.status).json({ error: { code: safe.code, message: safe.message,
     ...(safe.details ? { details: safe.details } : {}), retryable: safe.retryable },
     meta: { requestId: response.locals.requestId, isMock: false } });

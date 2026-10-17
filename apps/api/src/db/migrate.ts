@@ -14,7 +14,7 @@ export async function migrate(pool: Pool) {
     await client.query(`CREATE TABLE IF NOT EXISTS app.schema_migrations
       (name text PRIMARY KEY, sha256 text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`);
     for (const name of files) {
-      const sql = await readFile(new URL(name, directory), "utf8");
+      const sql = (await readFile(new URL(name, directory), "utf8")).replaceAll("\r\n", "\n");
       const hash = createHash("sha256").update(sql).digest("hex");
       const prior = await client.query("SELECT sha256 FROM app.schema_migrations WHERE name=$1", [name]);
       if (prior.rowCount) {
@@ -37,7 +37,7 @@ export async function schemasReady(pool: Pool) {
   const names = (await readdir(directory)).filter(name => /^\d+.*\.sql$/.test(name)).sort();
   const rows = await pool.query("SELECT name,sha256 FROM app.schema_migrations");
   for (const name of names) {
-    const sql = await readFile(new URL(name, directory), "utf8");
+    const sql = (await readFile(new URL(name, directory), "utf8")).replaceAll("\r\n", "\n");
     if (!rows.rows.some(row => row.name === name && row.sha256 === createHash("sha256").update(sql).digest("hex"))) return false;
   }
   const manifest = await pool.query("SELECT manifest_sha256 FROM app.challenge_versions WHERE slug='retry-safe-credit' AND version=1");

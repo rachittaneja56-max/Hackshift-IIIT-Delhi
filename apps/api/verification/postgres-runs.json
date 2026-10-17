@@ -1,0 +1,1502 @@
+{
+  "observedAt": "2026-10-17T14:57:39.625Z",
+  "reports": [
+    {
+      "variant": "atomic",
+      "runId": "0f727a1a-1f3c-414f-895d-14afe23314c1",
+      "result": {
+        "suiteVersion": "retry-safe-credit-v1",
+        "suiteSha256": "4397b69275f64a01954d4e9ce5c5fb717fa3ecc4bc5e6bd83b8f3b551011b9ef",
+        "implementationSha256": "c8ccefa80af1cb4bb0bdee677afc7155142a1f309ef22442d34e926f2fb11e73",
+        "runnerKind": "approved_variant",
+        "verdict": "all_passed",
+        "tests": [
+          {
+            "id": "T1",
+            "status": "passed",
+            "expected": {
+              "status": 201,
+              "operations": 1,
+              "ledger": 1,
+              "balances": {
+                "A": 1100,
+                "B": 1000
+              },
+              "storedResponseMatches": true
+            },
+            "observed": {
+              "response": {
+                "status": 201,
+                "body": {
+                  "operationId": "108c140c-ec05-47c0-a965-cd48e8f295bd",
+                  "amountMinor": 100,
+                  "balanceMinor": 1100
+                }
+              },
+              "db": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "108c140c-ec05-47c0-a965-cd48e8f295bd",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "108c140c-ec05-47c0-a965-cd48e8f295bd",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "108c140c-ec05-47c0-a965-cd48e8f295bd",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 4836
+          },
+          {
+            "id": "T2",
+            "status": "passed",
+            "expected": {
+              "identicalResponses": true,
+              "operations": 1,
+              "ledger": 1,
+              "balanceA": 1100,
+              "freshVariantInstance": true
+            },
+            "observed": {
+              "responses": [
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "6f285f3a-e6c5-4be4-9117-c3b6669e69fc",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                },
+                {
+                  "body": {
+                    "amountMinor": 100,
+                    "operationId": "6f285f3a-e6c5-4be4-9117-c3b6669e69fc",
+                    "balanceMinor": 1100
+                  },
+                  "status": 201
+                },
+                {
+                  "body": {
+                    "amountMinor": 100,
+                    "operationId": "6f285f3a-e6c5-4be4-9117-c3b6669e69fc",
+                    "balanceMinor": 1100
+                  },
+                  "status": 201
+                }
+              ],
+              "db": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "6f285f3a-e6c5-4be4-9117-c3b6669e69fc",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "6f285f3a-e6c5-4be4-9117-c3b6669e69fc",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "6f285f3a-e6c5-4be4-9117-c3b6669e69fc",
+                    "amount_minor": 100
+                  }
+                ]
+              },
+              "freshVariantInstance": true
+            },
+            "durationMs": 16178
+          },
+          {
+            "id": "T3",
+            "status": "passed",
+            "expected": {
+              "identicalResponses": true,
+              "operations": 1,
+              "ledger": 1,
+              "balanceA": 1100,
+              "independentConnections": true
+            },
+            "observed": {
+              "responses": [
+                {
+                  "body": {
+                    "amountMinor": 100,
+                    "operationId": "c9f7fe33-324e-4fdf-bce5-8cd333449a54",
+                    "balanceMinor": 1100
+                  },
+                  "status": 201
+                },
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "c9f7fe33-324e-4fdf-bce5-8cd333449a54",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                }
+              ],
+              "backendPids": [
+                1446,
+                1446
+              ],
+              "independentClients": true,
+              "db": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "c9f7fe33-324e-4fdf-bce5-8cd333449a54",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "c9f7fe33-324e-4fdf-bce5-8cd333449a54",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "c9f7fe33-324e-4fdf-bce5-8cd333449a54",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 32376
+          },
+          {
+            "id": "T4",
+            "status": "passed",
+            "expected": {
+              "conflictStatus": 409,
+              "stateUnchanged": true
+            },
+            "observed": {
+              "first": {
+                "status": 201,
+                "body": {
+                  "operationId": "dea525bb-e1ff-48f0-9570-d416ebc7c389",
+                  "amountMinor": 100,
+                  "balanceMinor": 1100
+                }
+              },
+              "conflict": {
+                "status": 409,
+                "body": {
+                  "error": "PAYLOAD_CONFLICT"
+                }
+              },
+              "before": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "dea525bb-e1ff-48f0-9570-d416ebc7c389",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "dea525bb-e1ff-48f0-9570-d416ebc7c389",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "dea525bb-e1ff-48f0-9570-d416ebc7c389",
+                    "amount_minor": 100
+                  }
+                ]
+              },
+              "after": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "dea525bb-e1ff-48f0-9570-d416ebc7c389",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "dea525bb-e1ff-48f0-9570-d416ebc7c389",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "dea525bb-e1ff-48f0-9570-d416ebc7c389",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 4892
+          },
+          {
+            "id": "T5",
+            "status": "passed",
+            "expected": {
+              "afterFault": {
+                "balanceA": 1000,
+                "operations": 0,
+                "ledger": 0
+              },
+              "retryStatus": 201,
+              "afterRetryBalanceA": 1100
+            },
+            "observed": {
+              "faultInjected": true,
+              "afterFault": {
+                "balances": {
+                  "A": 1000,
+                  "B": 1000
+                },
+                "operations": [],
+                "ledger": []
+              },
+              "response": {
+                "status": 201,
+                "body": {
+                  "operationId": "824cb1d5-c66f-4e4b-b65e-d8fd06329e50",
+                  "amountMinor": 100,
+                  "balanceMinor": 1100
+                }
+              },
+              "afterRetry": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "824cb1d5-c66f-4e4b-b65e-d8fd06329e50",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "824cb1d5-c66f-4e4b-b65e-d8fd06329e50",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "824cb1d5-c66f-4e4b-b65e-d8fd06329e50",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 4678
+          },
+          {
+            "id": "T6",
+            "status": "passed",
+            "expected": {
+              "operations": 2,
+              "ledger": 2,
+              "balances": {
+                "A": 1100,
+                "B": 1100
+              }
+            },
+            "observed": {
+              "responses": [
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "4350bbd9-353b-4b3d-85d9-57f3e0b1513a",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                },
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "f8ec7291-ee1b-467a-ac2c-26d077513549",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                }
+              ],
+              "db": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1100
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "4350bbd9-353b-4b3d-85d9-57f3e0b1513a",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "4350bbd9-353b-4b3d-85d9-57f3e0b1513a",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  },
+                  {
+                    "account_id": "B",
+                    "key": "retry-key",
+                    "operation_id": "f8ec7291-ee1b-467a-ac2c-26d077513549",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "f8ec7291-ee1b-467a-ac2c-26d077513549",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "4350bbd9-353b-4b3d-85d9-57f3e0b1513a",
+                    "amount_minor": 100
+                  },
+                  {
+                    "account_id": "B",
+                    "operation_id": "f8ec7291-ee1b-467a-ac2c-26d077513549",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 5385
+          },
+          {
+            "id": "T7",
+            "status": "passed",
+            "expected": {
+              "operations": 2,
+              "ledger": 2,
+              "balanceA": 1300,
+              "independentConnections": true
+            },
+            "observed": {
+              "responses": [
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "62cd9058-832e-4634-ad82-bdd8f2235d51",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                },
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "a9097454-9835-4a40-b6af-ed637c9c725a",
+                    "amountMinor": 200,
+                    "balanceMinor": 1300
+                  }
+                }
+              ],
+              "backendPids": [
+                665,
+                665
+              ],
+              "independentClients": true,
+              "db": {
+                "balances": {
+                  "A": 1300,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "independent-key",
+                    "operation_id": "a9097454-9835-4a40-b6af-ed637c9c725a",
+                    "response": {
+                      "body": {
+                        "amountMinor": 200,
+                        "operationId": "a9097454-9835-4a40-b6af-ed637c9c725a",
+                        "balanceMinor": 1300
+                      },
+                      "status": 201
+                    }
+                  },
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "62cd9058-832e-4634-ad82-bdd8f2235d51",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "62cd9058-832e-4634-ad82-bdd8f2235d51",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "62cd9058-832e-4634-ad82-bdd8f2235d51",
+                    "amount_minor": 100
+                  },
+                  {
+                    "account_id": "A",
+                    "operation_id": "a9097454-9835-4a40-b6af-ed637c9c725a",
+                    "amount_minor": 200
+                  }
+                ]
+              }
+            },
+            "durationMs": 2534
+          }
+        ]
+      }
+    },
+    {
+      "variant": "credit-first",
+      "runId": "b1b45115-f66e-4fc5-8a1a-dca8bc034569",
+      "result": {
+        "suiteVersion": "retry-safe-credit-v1",
+        "suiteSha256": "4397b69275f64a01954d4e9ce5c5fb717fa3ecc4bc5e6bd83b8f3b551011b9ef",
+        "implementationSha256": "eaa7c4f2041de26fc20b1f257ddee63f1502104c9284b3d9fbe26ff812487bdb",
+        "runnerKind": "approved_variant",
+        "verdict": "some_failed",
+        "tests": [
+          {
+            "id": "T1",
+            "status": "passed",
+            "expected": {
+              "status": 201,
+              "operations": 1,
+              "ledger": 1,
+              "balances": {
+                "A": 1100,
+                "B": 1000
+              },
+              "storedResponseMatches": true
+            },
+            "observed": {
+              "response": {
+                "status": 201,
+                "body": {
+                  "operationId": "7f49159a-6ca2-4a19-9302-60acae4a15b9",
+                  "amountMinor": 100,
+                  "balanceMinor": 1100
+                }
+              },
+              "db": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "7f49159a-6ca2-4a19-9302-60acae4a15b9",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "7f49159a-6ca2-4a19-9302-60acae4a15b9",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "7f49159a-6ca2-4a19-9302-60acae4a15b9",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 1742
+          },
+          {
+            "id": "T2",
+            "status": "failed",
+            "expected": {
+              "identicalResponses": true,
+              "operations": 1,
+              "ledger": 1,
+              "balanceA": 1100,
+              "freshVariantInstance": true
+            },
+            "observed": {
+              "responses": [
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "300bea47-0c41-4812-b52f-db73d424f58a",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                },
+                {
+                  "body": {
+                    "amountMinor": 100,
+                    "operationId": "300bea47-0c41-4812-b52f-db73d424f58a",
+                    "balanceMinor": 1100
+                  },
+                  "status": 201
+                },
+                {
+                  "body": {
+                    "amountMinor": 100,
+                    "operationId": "300bea47-0c41-4812-b52f-db73d424f58a",
+                    "balanceMinor": 1100
+                  },
+                  "status": 201
+                }
+              ],
+              "db": {
+                "balances": {
+                  "A": 1300,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "300bea47-0c41-4812-b52f-db73d424f58a",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "300bea47-0c41-4812-b52f-db73d424f58a",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "300bea47-0c41-4812-b52f-db73d424f58a",
+                    "amount_minor": 100
+                  }
+                ]
+              },
+              "freshVariantInstance": true
+            },
+            "durationMs": 3994
+          },
+          {
+            "id": "T3",
+            "status": "failed",
+            "expected": {
+              "identicalResponses": true,
+              "operations": 1,
+              "ledger": 1,
+              "balanceA": 1100,
+              "independentConnections": true
+            },
+            "observed": {
+              "responses": [
+                {
+                  "status": 503,
+                  "body": {
+                    "error": "OPERATION_INCOMPLETE"
+                  }
+                },
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "56fb1b3c-7ca7-4eef-b456-8ef29acb82e2",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                }
+              ],
+              "backendPids": [
+                1446,
+                1446
+              ],
+              "independentClients": true,
+              "db": {
+                "balances": {
+                  "A": 1200,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "56fb1b3c-7ca7-4eef-b456-8ef29acb82e2",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "56fb1b3c-7ca7-4eef-b456-8ef29acb82e2",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "56fb1b3c-7ca7-4eef-b456-8ef29acb82e2",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 2110
+          },
+          {
+            "id": "T4",
+            "status": "failed",
+            "expected": {
+              "conflictStatus": 409,
+              "stateUnchanged": true
+            },
+            "observed": {
+              "first": {
+                "status": 201,
+                "body": {
+                  "operationId": "ccf40d22-6da5-45b4-b18d-f17ac320fc2d",
+                  "amountMinor": 100,
+                  "balanceMinor": 1100
+                }
+              },
+              "conflict": {
+                "status": 409,
+                "body": {
+                  "error": "PAYLOAD_CONFLICT"
+                }
+              },
+              "before": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "ccf40d22-6da5-45b4-b18d-f17ac320fc2d",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "ccf40d22-6da5-45b4-b18d-f17ac320fc2d",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "ccf40d22-6da5-45b4-b18d-f17ac320fc2d",
+                    "amount_minor": 100
+                  }
+                ]
+              },
+              "after": {
+                "balances": {
+                  "A": 1300,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "ccf40d22-6da5-45b4-b18d-f17ac320fc2d",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "ccf40d22-6da5-45b4-b18d-f17ac320fc2d",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "ccf40d22-6da5-45b4-b18d-f17ac320fc2d",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 2489
+          },
+          {
+            "id": "T5",
+            "status": "failed",
+            "expected": {
+              "afterFault": {
+                "balanceA": 1000,
+                "operations": 0,
+                "ledger": 0
+              },
+              "retryStatus": 201,
+              "afterRetryBalanceA": 1100
+            },
+            "observed": {
+              "faultInjected": true,
+              "afterFault": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [],
+                "ledger": []
+              },
+              "response": {
+                "status": 201,
+                "body": {
+                  "operationId": "6e74f18c-9dbe-4993-a67a-12f3bdd3e2c0",
+                  "amountMinor": 100,
+                  "balanceMinor": 1200
+                }
+              },
+              "afterRetry": {
+                "balances": {
+                  "A": 1200,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "6e74f18c-9dbe-4993-a67a-12f3bdd3e2c0",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "6e74f18c-9dbe-4993-a67a-12f3bdd3e2c0",
+                        "balanceMinor": 1200
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "6e74f18c-9dbe-4993-a67a-12f3bdd3e2c0",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 5432
+          },
+          {
+            "id": "T6",
+            "status": "passed",
+            "expected": {
+              "operations": 2,
+              "ledger": 2,
+              "balances": {
+                "A": 1100,
+                "B": 1100
+              }
+            },
+            "observed": {
+              "responses": [
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "a35e5b7a-15b3-41dd-ac2c-3a59ae2c6f8b",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                },
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "ef18b5ed-ba3d-4135-aadc-e845348f5812",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                }
+              ],
+              "db": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1100
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "a35e5b7a-15b3-41dd-ac2c-3a59ae2c6f8b",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "a35e5b7a-15b3-41dd-ac2c-3a59ae2c6f8b",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  },
+                  {
+                    "account_id": "B",
+                    "key": "retry-key",
+                    "operation_id": "ef18b5ed-ba3d-4135-aadc-e845348f5812",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "ef18b5ed-ba3d-4135-aadc-e845348f5812",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "a35e5b7a-15b3-41dd-ac2c-3a59ae2c6f8b",
+                    "amount_minor": 100
+                  },
+                  {
+                    "account_id": "B",
+                    "operation_id": "ef18b5ed-ba3d-4135-aadc-e845348f5812",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 1961
+          },
+          {
+            "id": "T7",
+            "status": "passed",
+            "expected": {
+              "operations": 2,
+              "ledger": 2,
+              "balanceA": 1300,
+              "independentConnections": true
+            },
+            "observed": {
+              "responses": [
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "8b7753d3-470a-49a6-a51a-908fbc5c605d",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                },
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "5c69b91c-890d-47c2-9470-02191b9008a5",
+                    "amountMinor": 200,
+                    "balanceMinor": 1300
+                  }
+                }
+              ],
+              "backendPids": [
+                1446,
+                1446
+              ],
+              "independentClients": true,
+              "db": {
+                "balances": {
+                  "A": 1300,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "independent-key",
+                    "operation_id": "5c69b91c-890d-47c2-9470-02191b9008a5",
+                    "response": {
+                      "body": {
+                        "amountMinor": 200,
+                        "operationId": "5c69b91c-890d-47c2-9470-02191b9008a5",
+                        "balanceMinor": 1300
+                      },
+                      "status": 201
+                    }
+                  },
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "8b7753d3-470a-49a6-a51a-908fbc5c605d",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "8b7753d3-470a-49a6-a51a-908fbc5c605d",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "5c69b91c-890d-47c2-9470-02191b9008a5",
+                    "amount_minor": 200
+                  },
+                  {
+                    "account_id": "A",
+                    "operation_id": "8b7753d3-470a-49a6-a51a-908fbc5c605d",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 2006
+          }
+        ]
+      }
+    },
+    {
+      "variant": "key-only",
+      "runId": "fc785728-f214-4143-ad7b-69c6344ebe55",
+      "result": {
+        "suiteVersion": "retry-safe-credit-v1",
+        "suiteSha256": "4397b69275f64a01954d4e9ce5c5fb717fa3ecc4bc5e6bd83b8f3b551011b9ef",
+        "implementationSha256": "bd0e446433b59d333cf557a24508e4ae622601999788b81cd8ea42468ee31fbb",
+        "runnerKind": "approved_variant",
+        "verdict": "some_failed",
+        "tests": [
+          {
+            "id": "T1",
+            "status": "passed",
+            "expected": {
+              "status": 201,
+              "operations": 1,
+              "ledger": 1,
+              "balances": {
+                "A": 1100,
+                "B": 1000
+              },
+              "storedResponseMatches": true
+            },
+            "observed": {
+              "response": {
+                "status": 201,
+                "body": {
+                  "operationId": "63987e2b-e367-4c90-9271-f9057d03791b",
+                  "amountMinor": 100,
+                  "balanceMinor": 1100
+                }
+              },
+              "db": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "63987e2b-e367-4c90-9271-f9057d03791b",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "63987e2b-e367-4c90-9271-f9057d03791b",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "63987e2b-e367-4c90-9271-f9057d03791b",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 2680
+          },
+          {
+            "id": "T2",
+            "status": "passed",
+            "expected": {
+              "identicalResponses": true,
+              "operations": 1,
+              "ledger": 1,
+              "balanceA": 1100,
+              "freshVariantInstance": true
+            },
+            "observed": {
+              "responses": [
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "a8c3ea09-972c-4384-82ba-620c67886354",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                },
+                {
+                  "body": {
+                    "amountMinor": 100,
+                    "operationId": "a8c3ea09-972c-4384-82ba-620c67886354",
+                    "balanceMinor": 1100
+                  },
+                  "status": 201
+                },
+                {
+                  "body": {
+                    "amountMinor": 100,
+                    "operationId": "a8c3ea09-972c-4384-82ba-620c67886354",
+                    "balanceMinor": 1100
+                  },
+                  "status": 201
+                }
+              ],
+              "db": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "a8c3ea09-972c-4384-82ba-620c67886354",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "a8c3ea09-972c-4384-82ba-620c67886354",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "a8c3ea09-972c-4384-82ba-620c67886354",
+                    "amount_minor": 100
+                  }
+                ]
+              },
+              "freshVariantInstance": true
+            },
+            "durationMs": 2971
+          },
+          {
+            "id": "T3",
+            "status": "failed",
+            "expected": {
+              "identicalResponses": true,
+              "operations": 1,
+              "ledger": 1,
+              "balanceA": 1100,
+              "independentConnections": true
+            },
+            "observed": {
+              "responses": [
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "fa759cd5-47dc-4468-bb89-6b619730e15f",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                },
+                {
+                  "status": 503,
+                  "body": {
+                    "error": "OPERATION_INCOMPLETE"
+                  }
+                }
+              ],
+              "backendPids": [
+                1446,
+                1446
+              ],
+              "independentClients": true,
+              "db": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "fa759cd5-47dc-4468-bb89-6b619730e15f",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "fa759cd5-47dc-4468-bb89-6b619730e15f",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "fa759cd5-47dc-4468-bb89-6b619730e15f",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 2035
+          },
+          {
+            "id": "T4",
+            "status": "passed",
+            "expected": {
+              "conflictStatus": 409,
+              "stateUnchanged": true
+            },
+            "observed": {
+              "first": {
+                "status": 201,
+                "body": {
+                  "operationId": "cc93255d-4d9b-47b2-a803-7a140a4abded",
+                  "amountMinor": 100,
+                  "balanceMinor": 1100
+                }
+              },
+              "conflict": {
+                "status": 409,
+                "body": {
+                  "error": "PAYLOAD_CONFLICT"
+                }
+              },
+              "before": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "cc93255d-4d9b-47b2-a803-7a140a4abded",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "cc93255d-4d9b-47b2-a803-7a140a4abded",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "cc93255d-4d9b-47b2-a803-7a140a4abded",
+                    "amount_minor": 100
+                  }
+                ]
+              },
+              "after": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "cc93255d-4d9b-47b2-a803-7a140a4abded",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "cc93255d-4d9b-47b2-a803-7a140a4abded",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "cc93255d-4d9b-47b2-a803-7a140a4abded",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 3210
+          },
+          {
+            "id": "T5",
+            "status": "failed",
+            "expected": {
+              "afterFault": {
+                "balanceA": 1000,
+                "operations": 0,
+                "ledger": 0
+              },
+              "retryStatus": 201,
+              "afterRetryBalanceA": 1100
+            },
+            "observed": {
+              "faultInjected": true,
+              "afterFault": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "f0c16cb9-97b8-446d-98ac-29907c7970e5",
+                    "response": null
+                  }
+                ],
+                "ledger": []
+              },
+              "response": {
+                "status": 503,
+                "body": {
+                  "error": "OPERATION_INCOMPLETE"
+                }
+              },
+              "afterRetry": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "f0c16cb9-97b8-446d-98ac-29907c7970e5",
+                    "response": null
+                  }
+                ],
+                "ledger": []
+              }
+            },
+            "durationMs": 2816
+          },
+          {
+            "id": "T6",
+            "status": "passed",
+            "expected": {
+              "operations": 2,
+              "ledger": 2,
+              "balances": {
+                "A": 1100,
+                "B": 1100
+              }
+            },
+            "observed": {
+              "responses": [
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "de300b74-2705-4441-b4a7-6dedb53ccb5c",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                },
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "1d383ae1-68a3-46c1-82bc-0a19b8649b62",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                }
+              ],
+              "db": {
+                "balances": {
+                  "A": 1100,
+                  "B": 1100
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "de300b74-2705-4441-b4a7-6dedb53ccb5c",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "de300b74-2705-4441-b4a7-6dedb53ccb5c",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  },
+                  {
+                    "account_id": "B",
+                    "key": "retry-key",
+                    "operation_id": "1d383ae1-68a3-46c1-82bc-0a19b8649b62",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "1d383ae1-68a3-46c1-82bc-0a19b8649b62",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "de300b74-2705-4441-b4a7-6dedb53ccb5c",
+                    "amount_minor": 100
+                  },
+                  {
+                    "account_id": "B",
+                    "operation_id": "1d383ae1-68a3-46c1-82bc-0a19b8649b62",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 2506
+          },
+          {
+            "id": "T7",
+            "status": "passed",
+            "expected": {
+              "operations": 2,
+              "ledger": 2,
+              "balanceA": 1300,
+              "independentConnections": true
+            },
+            "observed": {
+              "responses": [
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "fe935c77-af23-421c-a025-7f542c7611c2",
+                    "amountMinor": 100,
+                    "balanceMinor": 1100
+                  }
+                },
+                {
+                  "status": 201,
+                  "body": {
+                    "operationId": "0d9cc169-3750-40da-8ca1-a56d7bb66882",
+                    "amountMinor": 200,
+                    "balanceMinor": 1300
+                  }
+                }
+              ],
+              "backendPids": [
+                1446,
+                1446
+              ],
+              "independentClients": true,
+              "db": {
+                "balances": {
+                  "A": 1300,
+                  "B": 1000
+                },
+                "operations": [
+                  {
+                    "account_id": "A",
+                    "key": "independent-key",
+                    "operation_id": "0d9cc169-3750-40da-8ca1-a56d7bb66882",
+                    "response": {
+                      "body": {
+                        "amountMinor": 200,
+                        "operationId": "0d9cc169-3750-40da-8ca1-a56d7bb66882",
+                        "balanceMinor": 1300
+                      },
+                      "status": 201
+                    }
+                  },
+                  {
+                    "account_id": "A",
+                    "key": "retry-key",
+                    "operation_id": "fe935c77-af23-421c-a025-7f542c7611c2",
+                    "response": {
+                      "body": {
+                        "amountMinor": 100,
+                        "operationId": "fe935c77-af23-421c-a025-7f542c7611c2",
+                        "balanceMinor": 1100
+                      },
+                      "status": 201
+                    }
+                  }
+                ],
+                "ledger": [
+                  {
+                    "account_id": "A",
+                    "operation_id": "0d9cc169-3750-40da-8ca1-a56d7bb66882",
+                    "amount_minor": 200
+                  },
+                  {
+                    "account_id": "A",
+                    "operation_id": "fe935c77-af23-421c-a025-7f542c7611c2",
+                    "amount_minor": 100
+                  }
+                ]
+              }
+            },
+            "durationMs": 2380
+          }
+        ]
+      }
+    }
+  ]
+}

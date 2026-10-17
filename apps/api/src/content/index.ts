@@ -4,7 +4,7 @@ import { sha256 } from "../db/hash.js";
 const sourceDirectory = new URL("../../src/challenges/retry-safe-credit/", import.meta.url);
 export const variantFiles = Object.fromEntries(await Promise.all((["credit-first", "key-only", "atomic"] as VariantId[]).map(async id => [id,
   await Promise.all([`${id}.ts`, "shared.ts", "types.ts"].map(async path => ({ path, language: "typescript" as const,
-    source: await readFile(new URL(path, sourceDirectory), "utf8") }))),
+    source: (await readFile(new URL(path, sourceDirectory), "utf8")).replaceAll("\r\n", "\n") }))),
 ]))) as Record<VariantId, { path: string; language: "typescript"; source: string }[]>;
 export const testDescriptions = [
   { id: "T1", description: "One valid credit stores one operation, ledger entry and replayable response." },

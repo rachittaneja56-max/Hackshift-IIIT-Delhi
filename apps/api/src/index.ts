@@ -2,10 +2,13 @@ import "dotenv/config";
 import { createApp } from "./app.js";
 import { readApiConfig } from "./config.js";
 import { createDatabasePool } from "./db/pool.js";
+import { EvaluationWorker } from "./evaluations/worker.js";
 
 const config = readApiConfig();
 const pool = createDatabasePool(config.DATABASE_URL);
 const app = createApp(config, pool);
+const worker = pool ? new EvaluationWorker(pool, config) : null;
+worker?.start();
 const server = app.listen(config.PORT, "0.0.0.0", () => {
   console.log(`TrajectoryOs API listening on port ${config.PORT}`);
 });
@@ -14,6 +17,7 @@ let shuttingDown = false;
 async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
+  await worker?.stop();
   server.close(async () => {
     await pool?.end();
     process.exit(0);

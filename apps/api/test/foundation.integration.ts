@@ -38,6 +38,11 @@ test("B1: signed Clerk JWT boundaries and real PostgreSQL draft lifecycle", asyn
     assert.equal(list.items.length, 1);
     assert.equal(list.items[0].id, draft.id);
     assert.equal((await h.request(path + "?cursor=broken")).status, 422);
+    const second = await h.request(path, "POST", { ...input, clientRequestId: randomUUID() });
+    const firstPage = (await h.request(path + "?limit=1")).body.data;
+    const secondPage = (await h.request(path + "?limit=1&cursor=" + firstPage.nextCursor)).body.data;
+    assert.equal(firstPage.items[0].id, second.body.data.id);
+    assert.equal(secondPage.items[0].id, draft.id);
     const other = await h.request(path, "POST", input, foreign);
     assert.equal(other.status, 201); assert.notEqual(other.body.data.id, draft.id);
     assert.equal(creates[0].body.meta.isMock, false);
