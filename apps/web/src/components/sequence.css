@@ -1,0 +1,3 @@
+.sequence-diagram { display:block; width:100%; height:auto; color:var(--ink); margin:16px 0; }
+.response-trace .trace-lines { display:none; }
+@media (max-width:600px) { .sequence-diagram { display:none; }.response-trace .trace-lines { display:block; } }

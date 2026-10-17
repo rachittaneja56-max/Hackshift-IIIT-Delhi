@@ -4,9 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node scripts/prepare-editor-assets.mjs",
     "dev": "vite --host 127.0.0.1",
+    "prebuild": "node scripts/prepare-editor-assets.mjs",
     "build": "vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --experimental-transform-types --test test/core.test.mts test/ui.test.mjs",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
