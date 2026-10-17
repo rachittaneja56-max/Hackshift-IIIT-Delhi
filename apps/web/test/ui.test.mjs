@@ -15,7 +15,7 @@ test('F2: rendered comparison and selected repair remain independent; canonical 
 test('F3: returned mixed outcomes and limitations render without changing the verdict', async () => {
   const { Results } = await server.ssrLoadModule('/src/evidence/details.tsx');
   const html = renderToStaticMarkup(createElement(Results, { result: { verdict: 'some_failed', tests: [{ id: 'T3', status: 'failed', expected: { operations: 1 }, observed: { db: { operations: [{}, {}], ledger: [{}, {}], balances: { A: 1200 } } }, durationMs: 42 }] }, selected: 'T3', select: () => {} }));
-  assert.match(html, /Some failed/); assert.match(html, /0 of 1 observed checks passed/); assert.match(html, /operationCount/); assert.match(html, /Expand complete raw record/); assert.match(html, /not a skill score/);
+  assert.match(html, /Some checks failed/); assert.match(html, /0 of 1 observed checks passed/); assert.match(html, /operationCount/); assert.match(html, /Expand complete raw test record/); assert.match(html, /not a skill score/);
 });
 test('Lesson companion teaches response loss, application retries and the durable replay boundary', async () => {
   const { EditorialCompanion } = await server.ssrLoadModule('/src/learning/content.tsx');
@@ -27,4 +27,14 @@ test('Lesson companion teaches response loss, application retries and the durabl
   assert.match(html, /TCP retransmission repeats byte delivery/);
   assert.match(html, /Check your understanding/);
   assert.match(html, /outside the published lesson hash/);
+});
+test('History records make drafts, completed runs and execution errors distinct', async () => {
+  const { HistoryRecords } = await server.ssrLoadModule('/src/evidence/pages.tsx');
+  const make = (id, status) => ({ id, challenge: { slug: 'retry-safe-credit', version: 1 }, status, createdAt: '2026-10-18T00:00:00.000Z', submittedAt: status === 'draft' ? null : '2026-10-18T00:30:00.000Z', evidenceId: status === 'evaluated' ? id : null });
+  const html = renderToStaticMarkup(createElement(HistoryRecords, { items: [make('draft-id', 'draft'), make('complete-id', 'evaluated'), make('error-id', 'execution_error'), make('queued-id', 'queued')], filter: 'all', onFilter: () => {} }));
+  assert.match(html, /Resume draft/);
+  assert.match(html, /View evidence/);
+  assert.match(html, /Execution error/);
+  assert.match(html, /no test verdict/);
+  assert.match(html, /aria-label="Filter attempts"/);
 });
