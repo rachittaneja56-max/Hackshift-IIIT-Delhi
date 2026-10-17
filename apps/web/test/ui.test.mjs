@@ -8,9 +8,9 @@ after(() => server.close());
 test('F2: rendered comparison and selected repair remain independent; canonical source is escaped', async () => {
   const { Investigation } = await server.ssrLoadModule('/src/attempts/workspace.tsx');
   const artifact = { hld: null, lld: null, decisions: { keyScope: null, atomicity: null, payloadConflict: null }, variantId: 'atomic', aiCritique: null, repairJustification: null };
-  const challenge = { variants: ['credit-first', 'key-only', 'atomic'].map(id => ({ id, label: id, files: [{ path: `${id}.ts`, source: `// ${id}\nconst html = '<script>unsafe()</script>';` }] })), faultyAiSuggestion: { source: 'curated_fixture', title: 'Curated recommendation', text: 'A unique key alone prevents every duplicate effect.' } };
-  const html = renderToStaticMarkup(createElement(Investigation, { artifact, challenge, disabled: false, change: () => {} }));
-  assert.match(html, /credit-first\.ts/); assert.match(html, /key-only\.ts/); assert.match(html, /name="repair" checked="" value="atomic"/); assert.doesNotMatch(html, /<script>unsafe/); assert.match(html, /&lt;script&gt;/); assert.match(html, /curated_fixture/); assert.doesNotMatch(html, /All passed|Correct variant/);
+  const challenge = { variants: ['credit-first', 'key-only', 'atomic'].map(id => ({ id, label: id, files: [{ path: `${id}.ts`, source: `// ${id}\nconst html = '<script>unsafe()</script>';` }] })), testDescriptions: [{ id: 'T5', description: 'Failure after a write rolls back all effects.' }], faultyAiSuggestion: { source: 'curated_fixture', title: 'Curated recommendation', text: 'A unique key alone prevents every duplicate effect.' } };
+  const html = renderToStaticMarkup(createElement(Investigation, { attemptId: 'attempt-one', artifact, challenge, disabled: false, change: () => {} }));
+  assert.match(html, /credit-first\.ts/); assert.match(html, /key-only\.ts/); assert.match(html, /name="repair" checked="" value="atomic"/); assert.doesNotMatch(html, /<script>unsafe/); assert.match(html, /&lt;script&gt;/); assert.match(html, /curated_fixture/); assert.match(html, /source-line-number/); assert.match(html, /Initial hypothesis &amp; investigation notes/); assert.doesNotMatch(html, /All passed|Correct variant/);
 });
 test('F3: returned mixed outcomes and limitations render without changing the verdict', async () => {
   const { Results } = await server.ssrLoadModule('/src/evidence/details.tsx');
