@@ -1,5 +1,52 @@
 # AI Debugging Lab handoff
 
+## S6 current repository audit — 2026-10-18
+
+**Status: Gate A fails; implementation is paused before application-code changes.** This section describes the checked-in repository at `d788a331c7532554aceff30932d7a51789f2a398` and supersedes the historical status and verification claims below until their source artifacts are restored and rerun. The prior handoff is retained as historical context, not as evidence that the current branch builds or that its remote operations can be reproduced.
+
+### Verified repository state
+
+- The working branch is `feat/sandbox-hardening`, based on the current public `main` commit above. The prior `feat/product-ui-revamp` checkout was clean and remains unchanged.
+- `apps/api/src/sandbox/service.ts`, `agent.ts`, migration `005_sandbox.sql`, sandbox tests, Code Lab UI/API/tests, spike scripts, and `sandbox-workflow.json` are tracked.
+- The service imports `apps/api/src/sandbox/provider.ts` and `apps/api/src/sandbox/challenge/files.ts`; neither exists in this commit, any fetched branch history, the local dangling commit set, or the searched Desktop/Documents working-copy paths. Neither missing path has a Git ignore rule.
+- `e2b` is imported by the live test and spike scripts but is absent from both API `package.json` and the root lockfile; it is also absent from the current `node_modules`. The described challenge lockfile, `apps/api/verification/e2b-spike-summary.json`, and `content/courses/` are absent from the tracked tree. `SANDBOX_HANDOFF.md` therefore overstates what a fresh clone contains.
+- `architecture/05-api-contract.md` is v0.4 and contains no sandbox route or DTO definitions. Sandbox routes exist in `apps/api/src/app.ts`; future route/DTO changes must be reviewed against the wire-contract authority rather than inferred from the current implementation.
+
+### Existing flow visible in checked-in code
+
+Clerk middleware and `resolveUser` protect `/api/v1`; sandbox POSTs validate UUID request IDs and prompts with strict Zod schemas. `SandboxService` transactionally accepts a session or prompt and records the prompt count before calling the model. It then schedules E2B/model/test/finalization work with `setImmediate`, stores tool events and source snapshots, and on submission freezes a source snapshot before asking a fresh provider sandbox to grade it. The UI stores the session ID in `localStorage`, polls every three seconds, and fetches the final persisted report. Provider setup, file/path enforcement, actual challenge content, test commands, and grader isolation cannot be verified because both imported provider/challenge modules are missing.
+
+### Ranked findings
+
+1. **P0 — fresh-clone build is broken.** Root typecheck and build fail on missing provider/challenge imports. The failures also leave an implicit-`any` error in the file presentation path. Root tests fail loading the missing challenge module and the unlisted `e2b` package.
+2. **P1 — work is process-local.** Session creation, model turns, visible tests, and grading are scheduled with `setImmediate`; there is no database claim/lease or stale-worker fencing. `cleanup()` can mark old work interrupted after five minutes, but cannot resume it.
+3. **P1 — source/test evidence can diverge.** A model write reaches the provider before `recordToolEvent` commits `current_source/current_sha256`. If the database write fails, the remote file can differ from PostgreSQL. Visible-run records take their hash from the database snapshot without first reading and hashing the actual sandbox file. The files endpoint reads remote source while presenting the database hash.
+4. **P1 — untrusted history is promoted into system instructions.** `agent.ts` interpolates prior learner prompts and assistant responses into a system-role string. Tool/source output and learner-controlled text need separate, lower-trust context.
+5. **P1 — refresh recovery loses request identity.** The UI keeps the in-flight POST request ID only in React state. A reload during an ambiguous response loses it, and the initial session refresh removes the saved session ID on any fetch error, including transient network failure.
+6. **P1 — sandbox security evidence is not reproducible from this tree.** The live E2B test cannot load its SDK, and the production provider implementation is absent. No path, symlink, network-lockdown, resource-limit, or secret-boundary assertion can currently be rerun.
+7. **P2 — handoff/contract drift.** The historical handoff says the branch was not remotely checked and reports challenge files, SDK lock data, lessons, and E2B artifacts not present at the inspected remote tip. Existing sandbox endpoints are undocumented in API contract v0.4.
+
+### Test results observed during this audit
+
+| Command | Result |
+| --- | --- |
+| `npm run typecheck` | Failed in API compilation: missing `provider.js` and `challenge/files.js` modules. |
+| `npm run build` | Failed in the same API compilation step. |
+| `npm test` | Failed loading `challenge/files.js` and package `e2b`; 8 API tests passed before the two affected test files failed. |
+| `npm run test --workspace=@trajectoryos/web` | Passed, 30/30 tests. |
+| `npm run typecheck --workspace=@trajectoryos/web` | Passed. |
+| `npm run build --workspace=@trajectoryos/web` | Passed; Vite emitted its existing large-chunk warning. |
+
+The database integration suite, `npm ci`, root smoke command, browser visual checks, and any live E2B/OpenAI run were not run. Gate A is not met, so the feature's existing browser and remote execution claims remain unverified. No database operation or production change was made.
+
+### Required source decision before continuing
+
+Local history, fetched branches, and searched working copies did not contain the missing provider or challenge sources. The safe next step is to restore the original reviewed `provider.ts`, `challenge/files.ts`, pinned challenge lockfile, and associated verification artifacts from their authoritative working copy. If those originals no longer exist, replacing them would create a newly reconstructed challenge/provider, and could change challenge v1's grading truth. That requires explicit owner approval and must be documented as a reconstruction; it cannot be presented as the implementation previously tested in the historical handoff. Migration `005_sandbox.sql` is treated as applied and will not be rewritten; lifecycle changes would need an additive migration.
+
+### External SDK documentation checked
+
+The current official E2B SDK source documents `Sandbox.updateNetwork()` and network updates that replace the existing policy; it also documents `allowInternetAccess: false` as equivalent to `denyOut: ['0.0.0.0/0']`. The checked-in tree has no installed E2B package/types, so this is documentation/source review only—not verification against the app's installed SDK or a live network probe. See the [E2B SDK sandbox API](https://github.com/e2b-dev/E2B/blob/main/packages/js-sdk/src/sandbox/index.ts) and [network API types](https://github.com/e2b-dev/E2B/blob/main/packages/js-sdk/src/sandbox/sandboxApi.ts).
+
 ## Status and branch
 
 Feature branch: `feat/ai-debugging-lab`, based on the locally available integrated frontend commit `d44bc728`. The remote repository could not be authenticated from this environment, so its current tip was not verified. Work was done in an isolated clone at `/tmp/trajectoryos-ai-debugging`; the original checkout and its local-only files were left untouched. Nothing was pushed.
