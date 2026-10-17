@@ -4,7 +4,7 @@ import type { ApiConfig } from "../config.js";
 import { EvaluationResultSchema, VariantIdSchema, type EvaluationResult } from "@trajectoryos/contracts";
 import { transaction } from "../db/transaction.js";
 import { sha256 } from "../db/hash.js";
-import { limitations } from "../content/index.js";
+import { limitations, variantFiles } from "../content/index.js";
 import { cleanupRun, runSuite, RunError } from "../challenges/retry-safe-credit/suite.js";
 import { iso } from "../attempts/service.js";
 import { appCommit } from "../provenance.js";
@@ -81,8 +81,11 @@ export class EvaluationWorker {
       this.controller = new AbortController();
       const timer = setTimeout(() => this.controller?.abort(), 120000);
       try {
-        const attempt = (await this.pool.query("SELECT artifact FROM app.attempts WHERE id=$1", [claim.attempt_id])).rows[0];
+        const attempt = (await this.pool.query(`SELECT a.artifact,c.manifest FROM app.attempts a JOIN app.challenge_versions c
+          ON c.slug=a.challenge_slug AND c.version=a.challenge_version WHERE a.id=$1`, [claim.attempt_id])).rows[0];
         const variant = VariantIdSchema.parse(attempt.artifact.variantId);
+        const pinned = attempt.manifest.challenge.variants.find((item: { id: string }) => item.id === variant);
+        if (!pinned || sha256(pinned.files) !== sha256(variantFiles[variant])) throw new RunError("EVALUATOR_VERSION_MISMATCH", "Reviewed implementation does not match the frozen manifest.");
         const run = await this.runner(this.pool, variant, claim.run_id, this.controller.signal);
         await this.finalize(claim, run.result);
       } catch (error) {

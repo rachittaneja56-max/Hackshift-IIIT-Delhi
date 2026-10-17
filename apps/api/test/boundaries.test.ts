@@ -22,4 +22,8 @@ test("canonical hashes and provider configuration", () => {
   assert.equal(sha256({ a: 1, b: [2, 3] }), sha256({ b: [2, 3], a: 1 }));
   assert.throws(() => readApiConfig({ AI_ENABLED: "true" }), /OPENAI_API_KEY, OPENAI_MODEL/);
   assert.throws(() => readApiConfig({ AI_ENABLED: "true", AI_PROVIDER: "mistral" }), /MISTRAL_API_KEY, MISTRAL_MODEL/);
+  assert.equal(readApiConfig({ NODE_ENV: "" }).NODE_ENV, "development");
+  assert.equal(readApiConfig({ CLERK_AUTHORIZED_PARTIES: "http://127.0.0.1:5173/" }).CLERK_AUTHORIZED_PARTIES, "http://127.0.0.1:5173");
+  assert.throws(() => readApiConfig({ CORS_ORIGINS: "https://example.com/path" }), /CORS_ORIGINS/);
+  assert.throws(() => readApiConfig({ NODE_ENV: "production", DATABASE_URL: "postgresql://localhost/example" }), /CLERK_SECRET_KEY/);
 });

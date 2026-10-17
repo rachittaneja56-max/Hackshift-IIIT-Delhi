@@ -7,13 +7,15 @@ import type { ApiConfig } from "./config.js";
 import { ApiError, databaseUnavailable, errorHandler, notFound } from "./errors.js";
 import { clerkAuthentication, resolveUser } from "./auth/index.js";
 import { AttemptService, historyQuerySchema } from "./attempts/service.js";
-import { challenge, courses, lesson } from "./content/index.js";
+import { ContentService } from "./content/service.js";
 import { schemasReady } from "./db/migrate.js";
 import { EvaluationService } from "./evaluations/service.js";
 import { EvidenceService } from "./evidence/service.js";
+import { FeedbackService } from "./ai/service.js";
+import type { FeedbackProvider } from "./ai/provider.js";
 
 // Dependency injection is programmatic only; no HTTP/header/environment auth bypass.
-export type AppDependencies = { authentication?: RequestHandler };
+export type AppDependencies = { authentication?: RequestHandler; feedbackProvider?: FeedbackProvider | null };
 export function createApp(config: ApiConfig, pool: Pool | null, dependencies: AppDependencies = {}): Express {
   const app = express();
   app.disable("x-powered-by");
@@ -24,7 +26,7 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
     response.setHeader("Cache-Control", "no-store");
     next();
   });
-  const origins = (config.CORS_ORIGINS ?? "http://localhost:5173").split(",").map(s => s.trim());
+  const origins = (config.CORS_ORIGINS ?? config.CLERK_AUTHORIZED_PARTIES ?? "http://localhost:5173").split(",").map(s => s.trim());
   app.use((request, response, next) => {
     const origin = request.headers.origin;
     response.vary("Origin");
@@ -54,16 +56,20 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
   const attempts = pool ? new AttemptService(pool) : null;
   const evaluations = pool ? new EvaluationService(pool) : null;
   const evidence = pool ? new EvidenceService(pool) : null;
+  const feedback = pool ? new FeedbackService(pool, config, dependencies.feedbackProvider) : null;
+  const content = pool ? new ContentService(pool) : null;
   const service = () => { if (!attempts) throw databaseUnavailable(); return attempts; };
   const id = (value: unknown) => z.string().uuid().parse(value);
-  app.get("/api/v1/courses", (_request, response) => { ok(response, courses); });
-  app.get("/api/v1/lessons/:slug/versions/:version", (request, response) => {
-    if (request.params.slug !== lesson.slug || request.params.version !== String(lesson.version)) throw notFound();
-    ok(response, lesson);
+  app.get("/api/v1/courses", async (_request, response) => {
+    if (!content) throw databaseUnavailable(); ok(response, await content.courses());
   });
-  app.get("/api/v1/challenges/:slug/versions/:version", (request, response) => {
-    if (request.params.slug !== challenge.slug || request.params.version !== String(challenge.version)) throw notFound();
-    ok(response, challenge);
+  app.get("/api/v1/lessons/:slug/versions/:version", async (request, response) => {
+    if (!content) throw databaseUnavailable();
+    ok(response, await content.lesson(z.string().parse(request.params.slug), z.string().parse(request.params.version)));
+  });
+  app.get("/api/v1/challenges/:slug/versions/:version", async (request, response) => {
+    if (!content) throw databaseUnavailable();
+    ok(response, await content.challenge(z.string().parse(request.params.slug), z.coerce.number().int().positive().parse(request.params.version)));
   });
   app.post("/api/v1/attempts", async (request, response) => {
     const result = await service().create(response.locals.userId, CreateAttemptSchema.parse(request.body));
@@ -93,6 +99,16 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
   app.get("/api/v1/evidence/:id", async (request, response) => {
     if (!evidence) throw databaseUnavailable();
     ok(response, await evidence.get(response.locals.userId, id(request.params.id)));
+  });
+  app.get("/api/v1/evidence/:id/feedback", async (request, response) => {
+    if (!feedback) throw databaseUnavailable();
+    ok(response, await feedback.get(response.locals.userId, id(request.params.id)));
+  });
+  app.post("/api/v1/evidence/:id/feedback", async (request, response) => {
+    if (!feedback) throw databaseUnavailable();
+    EmptyRequestSchema.parse(request.body);
+    const result = await feedback.request(response.locals.userId, id(request.params.id));
+    ok(response, result, result.status === "generating" ? 202 : 200);
   });
   app.use((_request, _response, next) => next(notFound()));
   app.use(errorHandler);

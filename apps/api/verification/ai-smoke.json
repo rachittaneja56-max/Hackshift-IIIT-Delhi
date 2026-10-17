@@ -1,0 +1,93 @@
+{
+  "observedAt": "2026-10-17T15:03:18.762Z",
+  "evidenceId": "f9743d14-104c-4384-aae5-8c95b8101c7c",
+  "configuredProvider": "openai",
+  "configuredModel": "gpt-6-luna",
+  "liveInferenceVerified": true,
+  "feedback": {
+    "status": "ready",
+    "source": "llm",
+    "provider": "openai",
+    "model": "gpt-6-luna",
+    "promptVersion": "evidence-feedback-v1",
+    "output": {
+      "summary": "Interpretation: All seven supplied tests passed for the selected reviewed implementation. They observed successful credits, exact response replay on retries, unchanged state on changed-payload conflict, and rollback followed by a successful retry. These results cover the disclosed synthetic cases and schedules; they do not establish behavior in every interleaving or production workload.",
+      "strengths": [
+        {
+          "text": "The initial credit returned 201 and persisted one operation and ledger entry, with account A’s balance changing from 1000 to 1100 and the stored response matching.",
+          "evidenceRefs": [
+            "T1"
+          ]
+        },
+        {
+          "text": "Retries returned identical 201 responses without applying another credit, including after creation of a fresh variant instance.",
+          "evidenceRefs": [
+            "T2"
+          ]
+        },
+        {
+          "text": "Concurrent requests through independent clients produced one operation and ledger entry and identical responses.",
+          "evidenceRefs": [
+            "T3"
+          ]
+        },
+        {
+          "text": "A changed-payload request returned 409 with PAYLOAD_CONFLICT and left the recorded state unchanged.",
+          "evidenceRefs": [
+            "T4"
+          ]
+        },
+        {
+          "text": "After the injected fault, balance, operation and ledger state were rolled back; a retry then returned 201 and applied the credit.",
+          "evidenceRefs": [
+            "T5"
+          ]
+        },
+        {
+          "text": "The observed cases show separate credits for different accounts and for different keys on the same account.",
+          "evidenceRefs": [
+            "T6",
+            "T7"
+          ]
+        }
+      ],
+      "limitations": [
+        "These tests use synthetic fixture credits, not real money or financial data.",
+        "They execute a selected reviewed implementation, not code established as learner-authored.",
+        "The disclosed cases and schedules do not cover every interleaving or production workload.",
+        "Diagrams and reasoning require human review; they are not automatically graded.",
+        "These results do not establish authorship, general proficiency or hiring suitability.",
+        "Model commentary is interpretation. The stored test observations remain authoritative; diagrams and reasoning require human review."
+      ],
+      "nextSteps": [
+        {
+          "text": "No failures are reported in the supplied tests. For further investigation, add tests for additional concurrent schedules and production-like workloads, since the current observations do not cover every interleaving.",
+          "evidenceRefs": [
+            "T2",
+            "T3"
+          ]
+        },
+        {
+          "text": "Have a human review diagrams and reasoning separately; the supplied test outcomes do not assess them.",
+          "evidenceRefs": [
+            "T1",
+            "T7"
+          ]
+        }
+      ]
+    }
+  },
+  "failureCode": null,
+  "usage": {
+    "input_tokens": 1293,
+    "total_tokens": 1732,
+    "output_tokens": 439,
+    "input_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 1290
+    },
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    }
+  }
+}

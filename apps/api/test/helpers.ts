@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { once } from "node:events";
 import { readApiConfig } from "../src/config.js";
 import { createDatabasePool } from "../src/db/pool.js";
-import { createApp } from "../src/app.js";
+import { createApp, type AppDependencies } from "../src/app.js";
 import { migrate } from "../src/db/migrate.js";
 
 export const scene = { engine: "excalidraw" as const, formatVersion: 1 as const, elements: [
@@ -16,10 +16,10 @@ export const readyArtifact = { hld: scene, lld: scene, decisions: { keyScope: "a
   payloadConflict: "reject" as const }, variantId: "atomic" as const, aiCritique: "A committed balance can be applied again on retry.",
   repairJustification: "Store the key, effect and response in one transaction." };
 
-export async function harness() {
+export async function harness(dependencies: AppDependencies = {}) {
   const pool = createDatabasePool(process.env.DATABASE_URL);
   if (!pool) throw new Error("DATABASE_URL required: integration tests never substitute a mock database.");
-  await migrate(pool);
+  try { await migrate(pool); } catch (error) { await pool.end(); throw error; }
   const keys = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const publicKey = keys.publicKey.export({ type: "spki", format: "pem" }).toString();
   const issuer = "https://testing.clerk.accounts.dev";
@@ -35,7 +35,7 @@ export async function harness() {
     const signature = createSign("RSA-SHA256").update(`${header}.${payload}`).sign(keys.privateKey, "base64url");
     return `${header}.${payload}.${signature}`;
   }
-  const server = createServer(createApp(config, pool));
+  const server = createServer(createApp(config, pool, dependencies));
   server.listen(0, "127.0.0.1"); await once(server, "listening");
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("No listening socket");

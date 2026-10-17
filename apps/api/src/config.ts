@@ -11,9 +11,7 @@ const optionalText = z.preprocess(
 
 const apiEnvironmentSchema = z
   .object({
-    NODE_ENV: z
-      .enum(["development", "test", "production"])
-      .default("development"),
+    NODE_ENV: z.preprocess(emptyStringToUndefined, z.enum(["development", "test", "production"]).default("development")),
     PORT: z.preprocess(
       emptyStringToUndefined,
       z.coerce.number().int().min(1).max(65535).default(3000),
@@ -47,6 +45,15 @@ const apiEnvironmentSchema = z
     APP_COMMIT_SHA: optionalText,
   })
   .superRefine((environment, context) => {
+    for (const field of ["CORS_ORIGINS", "CLERK_AUTHORIZED_PARTIES"] as const) {
+      if (environment[field]) for (const origin of environment[field].split(",").map(s => s.trim())) {
+        try { const url = new URL(origin); if (!["http:", "https:"].includes(url.protocol) || url.origin !== origin.replace(/\/$/, "")) throw new Error(); }
+        catch { context.addIssue({ code: "custom", path: [field], message: "Use comma-separated exact HTTP(S) origins." }); }
+      }
+    }
+    if (environment.NODE_ENV === "production") for (const field of ["CLERK_SECRET_KEY", "CLERK_PUBLISHABLE_KEY", "CORS_ORIGINS", "CLERK_AUTHORIZED_PARTIES", "APP_COMMIT_SHA"] as const) {
+      if (!environment[field]) context.addIssue({ code: "custom", path: [field], message: "Required production configuration." });
+    }
     if (environment.NODE_ENV === "production" && !environment.DATABASE_URL) {
       context.addIssue({
         code: "custom",
@@ -79,6 +86,9 @@ export function readApiConfig(environment: NodeJS.ProcessEnv = process.env) {
       ...new Set(parsed.error.issues.map((issue) => issue.path.join("."))),
     ];
     throw new Error(`Invalid API configuration fields: ${invalidNames.join(", ")}`);
+  }
+  for (const field of ["CORS_ORIGINS", "CLERK_AUTHORIZED_PARTIES"] as const) {
+    if (parsed.data[field]) parsed.data[field] = parsed.data[field]!.split(",").map(origin => new URL(origin.trim()).origin).join(",");
   }
   return parsed.data;
 }
