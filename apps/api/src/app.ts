@@ -15,6 +15,9 @@ import { FeedbackService } from "./ai/service.js";
 import type { FeedbackProvider } from "./ai/provider.js";
 import { CareerReviewService } from "./career/service.js";
 import type { CareerAnalysisProvider } from "./career/provider.js";
+import { SandboxService } from "./sandbox/service.js";
+import type { SandboxProvider } from "./sandbox/provider.js";
+import type { SandboxAgentLike } from "./sandbox/agent.js";
 
 // Dependency injection is programmatic only; no HTTP/header/environment auth bypass.
 export type AppDependencies = {
@@ -22,6 +25,8 @@ export type AppDependencies = {
   feedbackProvider?: FeedbackProvider | null;
   careerProvider?: CareerAnalysisProvider | null;
   careerDeadlineMs?: number;
+  sandboxProvider?: SandboxProvider;
+  sandboxAgent?: SandboxAgentLike;
 };
 export function createApp(config: ApiConfig, pool: Pool | null, dependencies: AppDependencies = {}): Express {
   const app = express();
@@ -66,6 +71,10 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
   const feedback = pool ? new FeedbackService(pool, config, dependencies.feedbackProvider) : null;
   const career = pool ? new CareerReviewService(pool, config, dependencies.careerProvider, dependencies.careerDeadlineMs) : null;
   const content = pool ? new ContentService(pool) : null;
+  const sandbox = pool ? new SandboxService(pool, config, dependencies.sandboxProvider, dependencies.sandboxAgent) : null;
+  const sandboxService = () => { if (!sandbox) throw databaseUnavailable(); return sandbox; };
+  const sandboxRequest = z.object({ clientRequestId: z.string().uuid() }).strict();
+  const sandboxTurn = sandboxRequest.extend({ prompt: z.string().trim().min(1).max(4000) }).strict();
   const service = () => { if (!attempts) throw databaseUnavailable(); return attempts; };
   const id = (value: unknown) => z.string().uuid().parse(value);
   app.get("/api/v1/courses", async (_request, response) => {
@@ -131,6 +140,41 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
     if (!career) throw databaseUnavailable();
     EmptyRequestSchema.parse(request.body);
     ok(response, await career.resume(response.locals.userId, id(request.params.id)));
+  });
+  app.post("/api/v1/sandbox/sessions", async (request, response) => {
+    const body = sandboxRequest.parse(request.body);
+    const result = await sandboxService().create(response.locals.userId, body.clientRequestId);
+    ok(response, result.session, result.created ? 202 : 200);
+  });
+  app.get("/api/v1/sandbox/availability", (_request, response) => {
+    ok(response, { available: sandbox?.available() ?? false, challengeSlug: "rate-limiter-debugging", challengeVersion: 1 });
+  });
+  app.get("/api/v1/sandbox/sessions/:id", async (request, response) => {
+    ok(response, await sandboxService().get(response.locals.userId, id(request.params.id)));
+  });
+  app.get("/api/v1/sandbox/sessions/:id/files", async (request, response) => {
+    ok(response, await sandboxService().files(response.locals.userId, id(request.params.id)));
+  });
+  app.post("/api/v1/sandbox/sessions/:id/turns", async (request, response) => {
+    const body = sandboxTurn.parse(request.body);
+    const result = await sandboxService().acceptTurn(response.locals.userId, id(request.params.id), body.clientRequestId, body.prompt);
+    ok(response, result.turn, result.accepted ? 202 : 200);
+  });
+  app.get("/api/v1/sandbox/sessions/:id/turns/:turnId", async (request, response) => {
+    ok(response, await sandboxService().turn(response.locals.userId, id(request.params.id), id(request.params.turnId)));
+  });
+  app.post("/api/v1/sandbox/sessions/:id/visible-tests", async (request, response) => {
+    const body = sandboxRequest.parse(request.body);
+    const result = await sandboxService().visibleTests(response.locals.userId, id(request.params.id), body.clientRequestId);
+    ok(response, result.run, result.started ? 202 : 200);
+  });
+  app.post("/api/v1/sandbox/sessions/:id/submit", async (request, response) => {
+    const body = sandboxRequest.parse(request.body);
+    const result = await sandboxService().submit(response.locals.userId, id(request.params.id), body.clientRequestId);
+    ok(response, result, result.status === "submitted" ? 200 : 202);
+  });
+  app.get("/api/v1/sandbox/sessions/:id/report", async (request, response) => {
+    ok(response, await sandboxService().report(response.locals.userId, id(request.params.id)));
   });
   app.use((_request, _response, next) => next(notFound()));
   app.use(errorHandler);

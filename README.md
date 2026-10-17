@@ -1,6 +1,6 @@
 # TrajectoryOs
 
-TrajectoryOs is the HackShift 2026 learning workspace. The backend implements the v0.3 API for a seeded retry-safe credit lesson and challenge: authenticated drafts, saved HLD/LLD scenes, reviewed implementation variants, real PostgreSQL T1–T7 observations, immutable evidence/history, and evidence-grounded AI feedback. Frontend implementation is owned separately; this backend release does not include browser source changes, and browser Clerk sign-in/Excalidraw save-and-restore remain unverified integration checks.
+TrajectoryOs is the HackShift 2026 learning workspace. It includes the integrated frontend, a seeded retry-safe credit challenge, PostgreSQL evaluation, evidence-grounded AI feedback, and an optional E2B-backed AI Debugging Lab. Browser Clerk sign-in and Excalidraw save-and-restore remain unverified integration checks.
 
 The evaluator executes only the three reviewed variants (`atomic`, `credit-first`, `key-only`). It does not execute learner code, grade diagrams or establish authorship, general competence, or hiring suitability. The content and fixture balances are synthetic.
 
@@ -22,6 +22,13 @@ Copy `apps/api/.env.example` to `apps/api/.env` and fill the server values. Copy
 
 For the current Vite dev script, open the frontend at `http://127.0.0.1:5173`. Use `VITE_API_BASE_URL=http://127.0.0.1:3000`. The API development CORS and Clerk authorized-party defaults now use that same exact origin. `localhost` and `127.0.0.1` are different origins. If you choose another host, configure that exact origin in both `CORS_ORIGINS` and `CLERK_AUTHORIZED_PARTIES` and use it consistently in the browser.
 
+Build the shared contracts before running migrations or the API. This creates `packages/contracts/dist/index.js`, which resolves the `ERR_MODULE_NOT_FOUND` error from an unbuilt workspace:
+
+```bash
+npm run build --workspace=@trajectoryos/contracts
+npm run migrate --workspace=@trajectoryos/api
+```
+
 Run the API and web app in separate terminals:
 
 ```powershell
@@ -29,13 +36,9 @@ npm run dev --workspace=@trajectoryos/api
 npm run dev --workspace=@trajectoryos/web
 ```
 
-Run migrations explicitly before starting the API against a database:
-
-```powershell
-npm run migrate --workspace=@trajectoryos/api
-```
-
 API startup does not apply schema changes. `/health/live` checks process liveness; `/health/ready` checks database connectivity, the expected migrations, the published challenge manifest, and Clerk configuration.
+
+The AI Debugging Lab is off by default. To use `/lab/ai-debugging`, set `SANDBOX_ENABLED=true`, `E2B_API_KEY`, `OPENAI_API_KEY`, and `SANDBOX_AGENT_MODEL` in the API environment. Keep provider keys out of `apps/web/.env.local`. See [SANDBOX_HANDOFF.md](SANDBOX_HANDOFF.md) for the lab's lifecycle, limits, API, and verification evidence.
 
 ## Implemented API
 

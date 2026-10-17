@@ -8,6 +8,7 @@ import { LearnHome, LessonReader } from '../learning/pages';
 import { LabLanding, AttemptWorkspace } from '../attempts/workspace';
 import { HistoryPage, EvidencePage } from '../evidence/pages';
 import { MentorPreview, CareerPreview } from '../previews/pages';
+import { CodeLab } from '../code-lab/CodeLab';
 function SystemAppearance() {
   useEffect(() => {
     const media = matchMedia('(prefers-color-scheme: dark)');
@@ -37,6 +38,7 @@ export function AppRoutes() {
   if (path === '/mentors/preview') return <MentorPreview />;
   if (path === '/career/preview') return <CareerPreview />;
   if (path === '/learn' || path === '/') return <LearnHome />;
+   if (path === '/lab/ai-debugging') return <CodeLab />;
   return <main id="main-content" tabIndex={-1} className="page"><h1>That page is unavailable.</h1><Link href="/learn">Return to learning →</Link></main>;
 }
 function AuthenticatedApp() {

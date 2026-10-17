@@ -36,6 +36,11 @@ const apiEnvironmentSchema = z
     OPENAI_API_KEY: optionalText,
     OPENAI_MODEL: optionalText,
     AI_PROVIDER: z.preprocess(emptyStringToUndefined, z.enum(["openai", "mistral"]).default("openai")),
+    E2B_API_KEY: optionalText,
+    SANDBOX_AGENT_MODEL: optionalText,
+    SANDBOX_ENABLED: z.preprocess(emptyStringToUndefined, z.enum(["true", "false"]).default("false")).transform(value => value === "true"),
+    SANDBOX_MAX_ACTIVE: z.preprocess(emptyStringToUndefined, z.coerce.number().int().min(1).max(20).default(4)),
+    SANDBOX_SESSION_TTL_SECONDS: z.preprocess(emptyStringToUndefined, z.coerce.number().int().min(120).max(3600).default(1200)),
     AI_ENABLED: z
       .preprocess(
         emptyStringToUndefined,

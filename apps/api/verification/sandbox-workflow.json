@@ -1,0 +1,27 @@
+{
+  "dateUtc": "2026-10-17T21:33:08Z",
+  "provider": "E2B",
+  "providerSdk": "e2b@2.56.0",
+  "model": "gpt-6-luna",
+  "openaiSdk": "openai@7.36.0",
+  "workflow": {
+    "databaseBacked": true,
+    "promptCount": 1,
+    "turnStatus": "completed",
+    "toolsObserved": ["list_files", "read_file", "read_file", "write_file", "run_visible_tests"],
+    "sourceChanged": true,
+    "visible": { "exitCode": 0, "passed": 3, "failed": 0 },
+    "finalReport": { "verdict": "correct", "sourceSha256": "9de5b60cf4053cbc809146dbdc15a92aa969c4777cd560abde2839ed43685964", "hidden": { "exitCode": 0, "passed": 4, "failed": 0 } }
+  },
+  "otherLiveChecks": {
+    "starterVisible": { "exitCode": 1, "passed": 0, "failed": 3 },
+    "repairedVisible": { "exitCode": 0, "passed": 3, "failed": 0 },
+    "starterHidden": { "exitCode": 1, "passed": 0, "failed": 4 },
+    "repairedHidden": { "exitCode": 0, "passed": 4, "failed": 0 },
+    "pathTraversalReadAndWriteRejected": true,
+    "symlinkReadAndWriteRejected": true,
+    "networkProbeBeforeLockdownExitCode": 0,
+    "networkProbeAfterLockdownExitCode": 28
+  },
+  "limits": "E2B billed cost and browser visual behavior were not observed. An earlier live verification encountered intermittent host database/network failures; the final complete run above succeeded."
+}

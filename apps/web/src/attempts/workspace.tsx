@@ -12,37 +12,8 @@ import { StartAttempt } from './start';
 import { EvaluationPanel } from '../evidence/evaluation';
 export const variantLabel = (id: string | null) => id === 'credit-first' ? 'Variant A' : id === 'key-only' ? 'Variant B' : id === 'atomic' ? 'Variant C' : 'Not selected';
 export function LabLanding() {
-  const { api, userId } = useApi();
-  const challenge = useResource(() => api.challenge(), `challenge:${userId}`);
-  const history = useResource(() => api.history(), `${userId}:lab-history`);
-  const attempts = history.data?.items ?? [];
-  const drafts = attempts.filter(item => item.status === 'draft');
-  const latestDraft = drafts[0];
-  const clauses = challenge.data?.requirementMarkdown.replace(/^##[^\n]*\n/, '').split(/(?<=\.)\s+/) ?? [];
-  const briefGroups = [
-    ['Expected behavior', clauses.slice(0, 3)],
-    ['Conflicts and independence', clauses.slice(3, 5)],
-    ['Failure and scope', clauses.slice(5)],
-  ] as const;
-  return <main id="main-content" tabIndex={-1} className="page lab-landing">
-    <PageTitle eyebrow="Engineering lab · retry-safe-credit v1" title="How do you stop a retry from writing twice?"><p className="lead">Compare three reviewed implementations, explain the repair you choose, then inspect seven disclosed PostgreSQL checks.</p></PageTitle>
-    {challenge.loading ? <Loading label="Loading the engineering brief…" /> : challenge.error ? <ErrorNotice error={challenge.error} retry={challenge.reload} /> : challenge.data && <>
-      <div className="lab-intro">
-        <section className="problem-brief"><Badge>Approved implementation investigation</Badge><h2>{challenge.data.title}</h2>
-          <p className="problem-summary">A credit request may be retried after the response is lost. The operation must return its original result without applying a second credit.</p>
-          <div className="brief-groups">{briefGroups.map(([title, items]) => <section key={title}><h3>{title}</h3>{items.length ? <ul>{items.map((clause, index) => <li key={`${title}-${index}`}>{clause}</li>)}</ul> : <p className="muted small">See the full contract.</p>}</section>)}</div>
-          <details className="full-contract"><summary>Read the full challenge contract</summary><Markdown text={challenge.data.requirementMarkdown} /></details>
-          <ErrorNotice error={history.error} retry={history.reload} />
-          {history.loading ? <Loading label="Checking for a saved draft…" /> : latestDraft ? <div className="resume-callout"><div><span className="eyebrow">Draft available</span><p>{drafts.length === 1 ? 'Resume your saved attempt.' : `${drafts.length} recent drafts are available.`}</p></div><Link className="button primary" href={`/lab/attempts/${latestDraft.id}`}>Resume draft →</Link></div> : history.error ? <p className="small muted">Review your history before creating another attempt.</p> : history.data?.nextCursor ? <div className="resume-callout"><div><span className="eyebrow">More history is available</span><p>Check older attempts before starting another draft.</p></div><Link className="button" href="/evidence">Review My Evidence →</Link></div> : <StartAttempt label="Start the engineering lab" />}
-          {!history.loading && drafts.length > 1 && <Link className="text-action" href="/evidence">View all {drafts.length} recent drafts →</Link>}
-          {!history.loading && history.data?.nextCursor && <Link className="text-action" href="/evidence">Check older attempts in My Evidence →</Link>}
-          {latestDraft && <details className="new-attempt-disclosure"><summary>Start a separate attempt</summary><p>Keep this draft and its history intact. A separate attempt begins with empty drawings.</p><StartAttempt label="Create another attempt" /></details>}
-        </section>
-        <aside className="panel what-youll-build"><span className="eyebrow">What you will submit</span><h3>Draw, choose and explain.</h3><ol><li>Separate high-level and low-level designs</li><li>Three decisions about key scope, write boundaries and payload conflicts</li><li>A selected reviewed implementation, critique and justification</li><li>A frozen record of actual test observations</li></ol><p className="muted">The tests run reviewed code against synthetic credits. Your drawings and reasoning are saved for human review.</p><details><summary>See the seven disclosed checks</summary>{challenge.data.testDescriptions.map(test => <p key={test.id}><strong>{test.id}</strong> · {test.description}</p>)}</details></aside>
-      </div>
-      <section className="lab-expectations"><span className="eyebrow">Evaluation boundary</span><p>These checks show the selected implementation’s behavior in disclosed cases. They do not execute learner code, grade diagrams or prove who authored the selected implementation.</p><Link href="/evidence">Review a completed record →</Link></section>
-    </>}
-  </main>;
+  const { api, userId } = useApi(); const c = useResource(() => api.challenge(), `challenge:${userId}`);
+  return <main id="main-content" tabIndex={-1} className="page"><PageTitle eyebrow="Engineering lab / 01" title="A request can repeat. Its effect shouldn’t."><p className="lead">Make the retry boundary visible. Investigate the supplied code. Let actual database observations inform your explanation.</p></PageTitle>{c.loading ? <Loading /> : c.error ? <ErrorNotice error={c.error} retry={c.reload} /> : c.data && <div className="lab-intro"><section><Badge>Approved implementation investigation</Badge><h2>{c.data.title}</h2><Markdown text={c.data.requirementMarkdown} /><StartAttempt /><Link className="text-action" href="/evidence">Resume a saved attempt →</Link></section><aside className="panel"><span className="eyebrow">What you’ll produce</span><h3>Design. Judgment. Observations.</h3><ol><li>Separate HLD and LLD drawings</li><li>Three explicit design decisions</li><li>A selected repair and your reasoning</li><li>A frozen PostgreSQL evidence record</li></ol><p className="muted">Tests execute reviewed code using synthetic credits. Your drawings and reasoning remain artifacts for human review.</p></aside></div>}</main>;
 }
 function Requirements({ challenge }: { challenge: ChallengeDto }) {
   return <div className="compact-requirements"><span className="eyebrow">Problem summary</span><p>A client may retry after a response is lost. The API must replay the stored result without applying a second credit.</p>

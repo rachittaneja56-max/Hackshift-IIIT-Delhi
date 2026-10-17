@@ -28,4 +28,9 @@ for (const name of migrationFiles) {
   await copyFile(new URL(name, migrationSourceDirectory), new URL(name, migrationOutputDirectory));
 }
 
+const sandboxChallengeSourceDirectory = new URL("../src/sandbox/challenge/", import.meta.url);
+const sandboxChallengeOutputDirectory = new URL("../dist/sandbox/challenge/", import.meta.url);
+await mkdir(sandboxChallengeOutputDirectory, { recursive: true });
+await copyFile(new URL("package-lock.json", sandboxChallengeSourceDirectory), new URL("package-lock.json", sandboxChallengeOutputDirectory));
+
 console.log(`Packaged ${reviewedFiles.length} reviewed challenge sources and ${migrationFiles.length} migration files for the API runtime.`);
