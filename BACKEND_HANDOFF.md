@@ -123,5 +123,7 @@ Feedback is explicit: POST `{}` to generate, poll GET when status is generating.
 ## Commits
 
 - B1: `a013d8a9656b62ee99fe0eb0b21f7511fa535fe5`.
-- B2: `3136d76`.
-- Final B3 implementation SHA: recorded by the documentation-only follow-up commit after verification.
+- B2: `3136d7693829c9ce95b8e8b286c76e0001c8718e`.
+- Final backend implementation: `7e57381f11da1d14875ee0f5f5db2f552a8e0b7f`.
+
+This documentation-only follow-up records the final implementation SHA. Resolve the handoff commit itself with `git log -1 --format=%H -- BACKEND_HANDOFF.md`. No commits were pushed.
