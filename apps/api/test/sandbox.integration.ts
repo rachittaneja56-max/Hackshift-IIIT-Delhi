@@ -5,11 +5,13 @@ import { test } from "node:test";
 import { readApiConfig } from "../src/config.js";
 import { createDatabasePool } from "../src/db/pool.js";
 import { SandboxService } from "../src/sandbox/service.js";
-import { projectFiles, starterSource } from "../src/sandbox/challenge/files.js";
+import { challengeSourceSha256, packageLockSha256, projectFiles, starterSource, visibleSuiteSha256 } from "../src/sandbox/challenge/files.js";
+import { privateSuiteSha256, privateTestNames, visibleTestNames } from "../src/sandbox/challenge/grader.js";
 import { hashSource, type SandboxProvider, type TestObservation } from "../src/sandbox/provider.js";
 import type { SandboxAgentLike } from "../src/sandbox/agent.js";
 
-const observed: TestObservation = { exitCode: 0, stdout: "# pass 1\n# fail 0\n", stderr: "", durationMs: 1, passed: 1, failed: 0 };
+const observed: TestObservation = { exitCode: 0, stdout: "", stderr: "", durationMs: 1, passed: privateTestNames.length, failed: 0,
+  tests: privateTestNames.map(name => ({ name, status: "passed" })), suiteSha256: privateSuiteSha256, sourceSha256: hashSource(starterSource) };
 const config = readApiConfig({ ...process.env, SANDBOX_ENABLED: "true", E2B_API_KEY: "test-only", OPENAI_API_KEY: "test-only", SANDBOX_AGENT_MODEL: "test-model" });
 const pool = createDatabasePool(config.DATABASE_URL);
 
@@ -18,7 +20,8 @@ test("sandbox prompt budget, idempotency, ownership, grading and cleanup", { ski
   const userA = randomUUID(), userB = randomUUID();
   const ids = new Map<string, string>();
   const killed: string[] = [];
-  let visibleObservation = observed;
+  let visibleObservation: TestObservation = { ...observed, passed: visibleTestNames.length,
+    tests: visibleTestNames.map(name => ({ name, status: "passed" })), suiteSha256: visibleSuiteSha256 };
   let failGrade = false;
   let failAgent = false;
   let gate: Promise<void> | null = null;
@@ -29,8 +32,12 @@ test("sandbox prompt budget, idempotency, ownership, grading and cleanup", { ski
     listFiles() { return Object.keys(projectFiles).map(path => ({ path, editable: path === "src/rateLimiter.ts" })); },
     async readFile(id, path) { return path === "src/rateLimiter.ts" ? ids.get(id)! : projectFiles[path]!; },
     async writeFile(id, path, source) { if (path !== "src/rateLimiter.ts") throw new Error("forbidden"); ids.set(id, source); return { path, sha256: hashSource(source), bytes: source.length }; },
-    async runVisibleTests() { return visibleObservation; },
-    async grade(source) { if (failGrade) throw new Error("synthetic provider failure"); return { observation: observed, sandboxId: randomUUID(), sourceHash: hashSource(source), environment: { provider: "fake", sdk: "fake", runner: "fake", network: "fake" } }; },
+    async runVisibleTests(id) { return { ...visibleObservation, sourceSha256: hashSource(ids.get(id) ?? "") }; },
+    async grade(source) { if (failGrade) throw new Error("synthetic provider failure"); return {
+      observation: { ...observed, sourceSha256: hashSource(source) }, sandboxId: randomUUID(), sourceHash: hashSource(source),
+      environment: { provider: "fake", sdk: "fake", runner: "fake", nodeVersion: "test", packageLockSha256,
+        challengeSourceSha256, network: "fake" },
+    }; },
     async kill(id) { killed.push(id); return true; },
   };
   const agent: SandboxAgentLike = { async run({ prompt, onEvent, provider: tools, sandboxId }) { if (gate) await gate;
@@ -39,7 +46,7 @@ test("sandbox prompt budget, idempotency, ownership, grading and cleanup", { ski
     return { response: `processed ${prompt}`, model: "test-model", inputTokens: 10, outputTokens: 10 }; } };
   const service = new SandboxService(db, config, provider, agent);
   const waitFor = async (id: string, status: string) => {
-    for (let attempt = 0; attempt < 100; attempt++) {
+    for (let attempt = 0; attempt < 1_000; attempt++) {
       const result = await service.get(userA, id);
       if (result.status === status) return result;
       await new Promise(resolve => setTimeout(resolve, 25));
@@ -121,6 +128,7 @@ test("sandbox prompt budget, idempotency, ownership, grading and cleanup", { ski
     assert.equal(afterFailure.currentSha256, hashSource("partial"));
     assert.equal((await service.acceptTurn(userA, fourth.session.id, failedKey, "fail after write")).accepted, false);
   } finally {
+    await db.query("DELETE FROM app.sandbox_jobs WHERE session_id IN (SELECT id FROM app.sandbox_sessions WHERE user_id IN ($1,$2))", [userA, userB]);
     await db.query("DELETE FROM app.sandbox_test_runs WHERE session_id IN (SELECT id FROM app.sandbox_sessions WHERE user_id IN ($1,$2))", [userA, userB]);
     await db.query("DELETE FROM app.sandbox_turns WHERE session_id IN (SELECT id FROM app.sandbox_sessions WHERE user_id IN ($1,$2))", [userA, userB]);
     await db.query("DELETE FROM app.sandbox_sessions WHERE user_id IN ($1,$2)", [userA, userB]);

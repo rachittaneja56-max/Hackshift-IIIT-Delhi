@@ -1,6 +1,7 @@
 {
   "framework": "vite",
+  "installCommand": "npm ci",
   "buildCommand": "npm run build --workspace=@trajectoryos/contracts && npm run build --workspace=@trajectoryos/web",
-  "outputDirectory": "dist",
+  "outputDirectory": "apps/web/dist",
   "rewrites": [{ "source": "/((?!assets/|excalidraw-assets/).*)", "destination": "/index.html" }]
 }

@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import express, { type Express, type RequestHandler } from "express";
 import { z } from "zod";
-import { CreateAttemptSchema, CreateCareerReviewSchema, SaveDraftSchema, SubmitSchema, EmptyRequestSchema } from "@trajectoryos/contracts";
+import { CreateAttemptSchema, CreateCareerReviewSchema, SaveDraftSchema, SubmitSchema, EmptyRequestSchema,
+  SandboxCreateRequestSchema, SandboxTurnRequestSchema } from "@trajectoryos/contracts";
 import type { Pool } from "pg";
 import type { ApiConfig } from "./config.js";
 import { ApiError, databaseUnavailable, errorHandler, notFound } from "./errors.js";
@@ -72,9 +73,10 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
   const career = pool ? new CareerReviewService(pool, config, dependencies.careerProvider, dependencies.careerDeadlineMs) : null;
   const content = pool ? new ContentService(pool) : null;
   const sandbox = pool ? new SandboxService(pool, config, dependencies.sandboxProvider, dependencies.sandboxAgent) : null;
+  app.locals.sandboxService = sandbox;
   const sandboxService = () => { if (!sandbox) throw databaseUnavailable(); return sandbox; };
-  const sandboxRequest = z.object({ clientRequestId: z.string().uuid() }).strict();
-  const sandboxTurn = sandboxRequest.extend({ prompt: z.string().trim().min(1).max(4000) }).strict();
+  const sandboxRequest = SandboxCreateRequestSchema;
+  const sandboxTurn = SandboxTurnRequestSchema;
   const service = () => { if (!attempts) throw databaseUnavailable(); return attempts; };
   const id = (value: unknown) => z.string().uuid().parse(value);
   app.get("/api/v1/courses", async (_request, response) => {
@@ -147,7 +149,7 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
     ok(response, result.session, result.created ? 202 : 200);
   });
   app.get("/api/v1/sandbox/availability", (_request, response) => {
-    ok(response, { available: sandbox?.available() ?? false, challengeSlug: "rate-limiter-debugging", challengeVersion: 1 });
+    ok(response, { available: sandbox?.available() ?? false, challengeSlug: "rate-limiter-debugging", challengeVersion: 2 });
   });
   app.get("/api/v1/sandbox/sessions/:id", async (request, response) => {
     ok(response, await sandboxService().get(response.locals.userId, id(request.params.id)));

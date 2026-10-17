@@ -64,7 +64,7 @@ export class ApiClient {
         const envelope = record(json); const meta = ApiMetaSchema.parse(envelope.meta);
         if (Object.keys(envelope).some(k => !['data', 'meta'].includes(k)) || !('data' in envelope)) throw new Error();
         const result = schema.parse(envelope.data); this.metadata(meta); return result;
-      } catch { throw new ApiClientError('The API response does not match contract v0.4. No success was assumed.', response.status, 'INVALID_RESPONSE', requestId); }
+      } catch { throw new ApiClientError('The API response does not match contract v0.5. No success was assumed.', response.status, 'INVALID_RESPONSE', requestId); }
     }
     throw new ApiClientError('Your session has expired. Sign in again.', 401, 'UNAUTHENTICATED');
   }

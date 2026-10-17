@@ -65,7 +65,12 @@ assert.deepEqual(packagedMigrations.filter(name => /^\d+.*\.sql$/.test(name)).so
   "002_evaluation.sql",
   "003_feedback.sql",
   "004_career_reviews.sql",
+  "005_sandbox.sql",
+  "006_sandbox_v2_recovery.sql",
 ]);
+for (const path of ["package.json", "package-lock.json", "test/private.test.ts"]) {
+  await readFile(new URL("../apps/api/dist/sandbox/challenge/" + path, import.meta.url), "utf8");
+}
 
 const blankReasoning = SubmissionReadyArtifactSchema.safeParse({
   ...readyArtifact,

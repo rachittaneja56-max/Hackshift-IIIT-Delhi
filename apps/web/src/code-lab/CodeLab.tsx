@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApi } from '../app/context';
 import { Link } from '../app/router';
+import { ApiClientError } from '../lib/api';
 import { sandboxApi, type SandboxFiles, type SandboxReport, type SandboxSession } from './api';
 import './code-lab.css';
 
 type Pending = { kind: 'start' | 'prompt' | 'visible' | 'submit'; id: string; prompt?: string };
+function readPending(key: string): Pending | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) ?? 'null') as Partial<Pending> | null;
+    if (!value || !['start', 'prompt', 'visible', 'submit'].includes(String(value.kind)) || typeof value.id !== 'string') return null;
+    if (value.kind === 'prompt' && typeof value.prompt !== 'string') return null;
+    return value as Pending;
+  } catch { return null; }
+}
 const short = (hash: string | null | undefined) => hash ? hash.slice(0, 12) : '—';
 function errorText(error: unknown) { return error instanceof Error ? error.message : 'The request failed.'; }
 function remaining(expiresAt: string, now: number) { const seconds = Math.max(0, Math.ceil((Date.parse(expiresAt) - now) / 1000)); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; }
@@ -20,6 +29,7 @@ function simpleDiff(before: string, after: string) {
 export function CodeLab() {
   const { api, userId } = useApi();
   const client = useMemo(() => sandboxApi(api), [api]);
+  const pendingStorageKey = 'trajectoryos:sandbox:' + userId + ':pending';
   const storageKey = `trajectoryos:sandbox:${userId}`;
   const [availability, setAvailability] = useState<boolean | null>(null);
   const [session, setSession] = useState<SandboxSession | null>(null);
@@ -28,17 +38,21 @@ export function CodeLab() {
   const [selectedPath, setSelectedPath] = useState('src/rateLimiter.ts');
   const [sourceView, setSourceView] = useState<'current' | 'original' | 'diff'>('current');
   const [prompt, setPrompt] = useState('');
-  const [pending, setPending] = useState<Pending | null>(null);
+  const [pending, setPending] = useState<Pending | null>(() => readPending(pendingStorageKey));
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const lastFilesHash = useRef<string | null>(null);
+  const updatePending = useCallback((next: Pending | null) => {
+    setPending(next);
+    try { if (next) localStorage.setItem(pendingStorageKey, JSON.stringify(next)); else localStorage.removeItem(pendingStorageKey); } catch {}
+  }, [pendingStorageKey]);
 
   const refresh = useCallback(async (id: string) => {
     const next = await client.session(id);
     setSession(next);
     if (['ready', 'processing', 'freezing', 'grading', 'submitted'].includes(next.status) && next.currentSha256 !== lastFilesHash.current) {
-      try { setFiles(await client.files(id)); lastFilesHash.current = next.currentSha256; } catch (cause) { if (next.status === 'ready') setError(errorText(cause)); }
+      try { setFiles(await client.files(id)); lastFilesHash.current = next.currentSha256; } catch (cause) { setError(errorText(cause)); }
     }
     if (next.status === 'submitted') setReport(await client.report(id));
   }, [client]);
@@ -47,9 +61,19 @@ export function CodeLab() {
     let active = true;
     void client.availability().then(value => { if (active) setAvailability(value.available); }, cause => { if (active) setError(errorText(cause)); });
     const saved = localStorage.getItem(storageKey);
-    if (saved) void refresh(saved).catch(cause => { if (active) { localStorage.removeItem(storageKey); setError(errorText(cause)); } });
+    if (saved) void refresh(saved).catch(cause => {
+      if (!active) return;
+      if (cause instanceof ApiClientError && cause.status === 404) {
+        localStorage.removeItem(storageKey);
+        setSession(null);
+        setFiles(null);
+        setReport(null);
+        updatePending(null);
+      }
+      setError(errorText(cause));
+    });
     return () => { active = false; };
-  }, [client, refresh, storageKey]);
+  }, [client, refresh, storageKey, updatePending]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -60,7 +84,7 @@ export function CodeLab() {
   }, [refresh, session]);
 
   const execute = async (action: Pending) => {
-    setWorking(true); setError(null); setPending(action);
+    setWorking(true); setError(null); updatePending(action);
     try {
       if (action.kind === 'start') {
         const next = await client.start(action.id);
@@ -75,7 +99,7 @@ export function CodeLab() {
         else if (action.kind === 'submit') await client.submit(session.id, action.id);
         await refresh(session.id);
       }
-      setPending(null);
+      updatePending(null);
     } catch (cause) { setError(errorText(cause)); }
     finally { setWorking(false); }
   };
@@ -92,7 +116,9 @@ export function CodeLab() {
     <div className="code-lab-controls"><div className="code-lab-status"><strong>{statusText}</strong><span>{session ? `Expires in ${remaining(session.expiresAt, now)}` : '20 minute session'}</span><span>{session ? `${session.promptsRemaining} prompts remaining` : '5 prompts available'}</span></div><div className="code-lab-actions"><button className="primary" disabled={working || availability !== true || !!session && !['expired', 'error', 'submitted'].includes(session.status)} onClick={() => void execute({ kind: 'start', id: crypto.randomUUID() })}>Start session</button><button disabled={!canWork || (session?.visibleRunsRemaining ?? 0) < 1} onClick={() => void execute({ kind: 'visible', id: crypto.randomUUID() })}>Run visible tests</button><button disabled={!canWork} onClick={() => void execute({ kind: 'submit', id: crypto.randomUUID() })}>Final submit</button></div></div>
     {availability === false && <div className="code-lab-alert" role="status">This lab is unavailable. The server needs the sandbox feature flag and provider credentials.</div>}
     {error && <div className="code-lab-alert" role="alert">{error}{pending && <button onClick={() => void execute(pending)} disabled={working}>Retry the same request</button>}</div>}
+    {pending && !error && <div className="code-lab-alert" role="status">A request may still be processing. Its request ID and payload are saved in this browser; retrying reuses the same ID. <button onClick={() => void execute(pending)} disabled={working}>Retry the same request</button></div>}
     {session?.status === 'expired' && <div className="code-lab-alert" role="status">This session expired. Start a new session to continue.</div>}
+    {session?.challengeVersion === 1 && <div className="code-lab-alert" role="status">This saved session belongs to retired challenge v1 and cannot continue. A submitted v1 report remains available; start a new v2 session to continue.</div>}
     {session?.status === 'error' && <div className="code-lab-alert" role="status">The session stopped after an infrastructure error. Your recorded messages and observations remain visible.</div>}
     <div className="code-lab-grid"><section className="code-lab-editor"><div className="code-lab-panel-title"><h2>Repository</h2><span>Read-only viewer · AI tools edit one file</span></div><div className="code-lab-file-area"><nav aria-label="Challenge files" className="code-lab-files">{files?.files.map(item => <button key={item.path} className={selectedPath === item.path ? 'selected' : ''} onClick={() => setSelectedPath(item.path)}><span>{item.path}</span><small>{item.changed ? 'Changed' : item.editable ? 'AI editable' : 'Read-only'}</small></button>) ?? <p className="muted">Start a session to inspect source.</p>}</nav><div className="code-lab-source"><div className="code-lab-source-toolbar"><strong>{selectedPath}</strong><div>{(['current', 'original', 'diff'] as const).map(view => <button key={view} aria-pressed={sourceView === view} onClick={() => setSourceView(view)}>{view}</button>)}</div></div><pre tabIndex={0}><code>{sourceView === 'diff' ? simpleDiff(original, current).join('\n') : sourceView === 'original' ? original : current || 'Source will appear when the sandbox is ready.'}</code></pre></div></div></section>
       <section className="code-lab-chat"><div className="code-lab-panel-title"><h2>AI coding assistant</h2><span>{session?.turns?.at(-1)?.model ?? 'Model shown after first turn'}</span></div><div className="code-lab-messages" aria-live="polite">{session?.turns?.length ? session.turns.map(turn => <article key={turn.id} className="code-lab-turn"><div className="code-lab-message learner"><small>Prompt {turn.ordinal} · learner</small><p>{turn.prompt}</p></div><div className="code-lab-message assistant"><small>{turn.model} · {turn.status}</small>{turn.response ? <p>{turn.response}</p> : turn.status === 'processing' ? <p>Processing your request…</p> : <p>The model or a tool failed. This accepted prompt still counts.</p>}{turn.toolEvents.map((event, index) => <details key={index}><summary>{event.name === 'write_file' ? 'Source changed' : event.name === 'run_visible_tests' ? 'Visible tests executed' : event.name === 'read_file' ? 'File read' : 'Files listed'}</summary><pre>{JSON.stringify({ arguments: event.arguments, result: event.result }, null, 2)}</pre></details>)}</div></article>) : <p className="muted">Ask the assistant to inspect a file, test a hypothesis, or repair a defect. Each accepted message uses one of five prompts.</p>}</div><form onSubmit={event => { event.preventDefault(); if (prompt.trim() && canWork && (session?.promptsRemaining ?? 0) > 0) void execute({ kind: 'prompt', id: crypto.randomUUID(), prompt: prompt.trim() }); }}><label htmlFor="code-lab-prompt">Your instruction</label><textarea id="code-lab-prompt" maxLength={4000} value={prompt} onChange={event => setPrompt(event.target.value)} placeholder="Check whether requests crossing a fixed-window boundary are handled correctly." disabled={!canWork || (session?.promptsRemaining ?? 0) < 1} /><div><small>{prompt.length}/4000 · {session?.promptsRemaining ?? 5} prompts remaining</small><button className="primary" disabled={!canWork || !prompt.trim() || (session?.promptsRemaining ?? 0) < 1}>Send prompt</button></div></form></section></div>

@@ -1,0 +1,16 @@
+{
+  "name": "trajectoryos-rate-limiter-debugging-v2",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "test:visible": "tsx --test --test-reporter=tap test/visible.test.ts",
+    "test:private": "tsx --test --test-reporter=tap test/private.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "4.20.0"
+  }
+}

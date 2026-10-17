@@ -30,6 +30,7 @@ function LearningBridge() {
       <div><span>01</span><strong>HTTP retries</strong><small>The same operation may arrive again.</small></div><span className="bridge-plus" aria-hidden="true">+</span>
       <div><span>02</span><strong>PostgreSQL transactions</strong><small>Related writes commit or roll back together.</small></div><span className="bridge-arrow" aria-hidden="true">→</span>
       <Link href="/lab"><span>Engineering lab</span><strong>Retry-safe credits</strong><small>Compare reviewed implementations against seven disclosed checks.</small></Link>
+      <Link href="/lab/ai-debugging"><span>AI debugging · reconstructed v2</span><strong>Repair a rate limiter</strong><small>Inspect a constrained assistant’s edits and test observations.</small></Link>
     </div>
   </section>;
 }
