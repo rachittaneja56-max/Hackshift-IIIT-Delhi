@@ -64,6 +64,7 @@ assert.deepEqual(packagedMigrations.filter(name => /^\d+.*\.sql$/.test(name)).so
   "001_foundation.sql",
   "002_evaluation.sql",
   "003_feedback.sql",
+  "004_career_reviews.sql",
 ]);
 
 const blankReasoning = SubmissionReadyArtifactSchema.safeParse({

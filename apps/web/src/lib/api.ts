@@ -33,7 +33,7 @@ export function apiOrigin(base: string) {
 export class ApiClient {
   readonly base: string;
   private writeBlockedUntil = 0;
-  constructor(base: string, private token: (fresh?: boolean) => Promise<string | null>, private metadata: (meta: ApiMeta) => void = () => {}, private transport: typeof fetch = fetch) { this.base = apiOrigin(base); }
+  constructor(base: string, private token: (fresh?: boolean) => Promise<string | null>, private metadata: (meta: ApiMeta) => void = () => {}, private transport: typeof fetch = globalThis.fetch.bind(globalThis)) { this.base = apiOrigin(base); }
   async request<T>(path: string, schema: Parser<T>, method = 'GET', body?: unknown): Promise<T> {
     if (method !== 'GET' && Date.now() < this.writeBlockedUntil) throw new ApiClientError('The server asked us to wait before another write.', 429, 'RATE_LIMITED', undefined, String(Math.ceil((this.writeBlockedUntil - Date.now()) / 1000)));
     for (let authTry = 0; authTry < 2; authTry++) {
@@ -43,7 +43,10 @@ export class ApiClient {
       let response: Response;
       const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 30000);
       try { response = await this.transport(this.base + path, { method, headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: controller.signal, cache: 'no-store' }); }
-      catch { throw new ApiClientError('The API could not be reached. Your local work is retained; check your connection and API origin.', 0, 'NETWORK_ERROR', undefined, undefined, undefined, true); }
+      catch (error) {
+        if (import.meta.env.DEV) console.error('TrajectoryOs API request failed before receiving a response.', { url: this.base + path, method, error });
+        throw new ApiClientError('The API could not be reached. Your local work is retained; check your connection and API origin.', 0, 'NETWORK_ERROR', undefined, undefined, undefined, true);
+      }
       finally { clearTimeout(timer); }
       if (response.status === 401 && authTry === 0) continue;
       const requestId = response.headers.get('X-Request-ID') ?? undefined, retryAfter = response.headers.get('Retry-After') ?? undefined;
@@ -61,7 +64,7 @@ export class ApiClient {
         const envelope = record(json); const meta = ApiMetaSchema.parse(envelope.meta);
         if (Object.keys(envelope).some(k => !['data', 'meta'].includes(k)) || !('data' in envelope)) throw new Error();
         const result = schema.parse(envelope.data); this.metadata(meta); return result;
-      } catch { throw new ApiClientError('The API response does not match contract v0.3. No success was assumed.', response.status, 'INVALID_RESPONSE', requestId); }
+      } catch { throw new ApiClientError('The API response does not match contract v0.4. No success was assumed.', response.status, 'INVALID_RESPONSE', requestId); }
     }
     throw new ApiClientError('Your session has expired. Sign in again.', 401, 'UNAUTHENTICATED');
   }

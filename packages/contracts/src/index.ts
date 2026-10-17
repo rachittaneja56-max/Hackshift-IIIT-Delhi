@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const API_CONTRACT_VERSION = "0.3" as const;
+export const API_CONTRACT_VERSION = "0.4" as const;
 
 export const ApiMetaSchema = z
   .object({
@@ -424,6 +424,157 @@ export const FeedbackDtoSchema = z
   })
   .strict();
 
+export const CareerCandidateFactSchema = z
+  .object({
+    id: z.string().uuid(),
+    kind: z.enum(["experience", "education", "project", "skill", "other"]),
+    text: z.string().trim().min(1).max(500),
+  })
+  .strict();
+
+export const CareerCandidateFactsSchema = z
+  .object({
+    source: z.literal("candidate_self_reported"),
+    items: z.array(CareerCandidateFactSchema).max(30),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (new Set(value.items.map((fact) => fact.id)).size !== value.items.length) {
+      context.addIssue({ code: "custom", path: ["items"], message: "Candidate fact IDs must be unique." });
+    }
+    if (value.items.reduce((total, fact) => total + fact.text.length, 0) > 8000) {
+      context.addIssue({ code: "custom", path: ["items"], message: "Candidate facts are limited to 8,000 characters in total." });
+    }
+  });
+
+export const CreateCareerReviewSchema = z
+  .object({
+    clientRequestId: z.string().uuid(),
+    jobDescription: z.string().trim().min(1).max(8000),
+    evidenceIds: z.array(z.string().uuid()).min(1).max(10),
+    candidateFacts: CareerCandidateFactsSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (new Set(value.evidenceIds).size !== value.evidenceIds.length) {
+      context.addIssue({ code: "custom", path: ["evidenceIds"], message: "Evidence IDs must be unique." });
+    }
+  });
+
+export const CareerTestObservationSchema = z
+  .object({
+    testId: z.string().regex(/^T[1-7]$/),
+    status: z.enum(["passed", "failed"]),
+  })
+  .strict();
+
+export const CareerEvidenceRecordSchema = z
+  .object({
+    evidenceId: z.string().uuid(),
+    attemptId: z.string().uuid(),
+    variantId: VariantIdSchema,
+    createdAt: z.string().datetime(),
+    provenance: z
+      .object({
+        isSynthetic: z.literal(false),
+        runnerKind: z.literal("approved_variant"),
+        challenge: z.object({ slug: z.literal("retry-safe-credit"), version: z.literal(1) }).strict(),
+        manifestSha256: z.string(),
+        contentSha256: z.string(),
+        artifactSha256: z.string(),
+        suiteVersion: z.string(),
+        suiteSha256: z.string(),
+        implementationSha256: z.string(),
+        appCommit: z.string(),
+        databaseVersion: z.string(),
+        runId: z.string().uuid(),
+        generation: z.number().int().positive(),
+        startedAt: z.string().datetime(),
+        finishedAt: z.string().datetime(),
+      })
+      .strict(),
+    tests: z.array(CareerTestObservationSchema),
+    limitations: z.array(z.string()),
+  })
+  .strict();
+
+export const CareerRequirementEvidenceSchema = z
+  .object({
+    evidenceId: z.string().uuid(),
+    tests: z.array(CareerTestObservationSchema).min(1).max(7),
+    explanation: z.string().trim().min(1).max(600),
+  })
+  .strict();
+
+export const CareerRequirementSchema = z
+  .object({
+    id: z.string().regex(/^R[1-9]\d{0,1}$/),
+    text: z.string().trim().min(1).max(500),
+    source: z
+      .object({
+        kind: z.literal("job_description"),
+        excerpt: z.string().trim().min(1).max(400),
+      })
+      .strict(),
+    coverage: z.enum(["related_observation", "self_reported_only", "not_observed", "unassessed"]),
+    evidence: z.array(CareerRequirementEvidenceSchema).max(10),
+    candidateFactIds: z.array(z.string().uuid()).max(30),
+  })
+  .strict();
+
+export const CareerReviewAnalysisSchema = z
+  .object({
+    source: z.enum(["llm", "rules"]),
+    provider: z.string().nullable(),
+    model: z.string().nullable(),
+    requirements: z.array(CareerRequirementSchema).max(30),
+    limitations: z.array(z.string()).min(1).max(12),
+  })
+  .strict();
+
+export const CareerResumeClaimSchema = z
+  .object({
+    text: z.string().min(1).max(800),
+    sourceLabel: z.enum(["candidate_self_reported", "observed_test_evidence"]),
+    candidateFactIds: z.array(z.string().uuid()).max(30),
+    evidence: z.array(CareerRequirementEvidenceSchema).max(10),
+  })
+  .strict();
+
+export const CareerResumeDraftSchema = z
+  .object({
+    source: z.literal("rules"),
+    markdown: z.string().max(12000),
+    claims: z.array(CareerResumeClaimSchema).max(100),
+    needsReview: z.literal(true),
+    createdAt: z.string().datetime(),
+  })
+  .strict();
+
+export const CareerReviewStatusSchema = z.enum(["generating", "ready", "limited", "unavailable"]);
+
+export const CareerReviewDtoSchema = z
+  .object({
+    id: z.string().uuid(),
+    clientRequestId: z.string().uuid(),
+    status: CareerReviewStatusSchema,
+    input: z
+      .object({
+        jobDescription: z.string().max(8000),
+        evidenceIds: z.array(z.string().uuid()).min(1).max(10),
+        candidateFacts: CareerCandidateFactsSchema.nullable(),
+      })
+      .strict(),
+    evidence: z.array(CareerEvidenceRecordSchema).min(1).max(10),
+    analysisVersion: z.string(),
+    analysis: CareerReviewAnalysisSchema.nullable(),
+    failureCode: z.string().nullable(),
+    resumeDraft: CareerResumeDraftSchema.nullable(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  })
+  .strict();
+
 export type ApiMeta = z.infer<typeof ApiMetaSchema>;
 export type ApiError = z.infer<typeof ApiErrorSchema>;
 export type ChallengeVersion = z.infer<typeof ChallengeVersionSchema>;
@@ -452,3 +603,13 @@ export type EvaluationStatus = z.infer<typeof EvaluationStatusSchema>;
 export type EvaluationResult = z.infer<typeof EvaluationResultSchema>;
 export type EvaluationDto = z.infer<typeof EvaluationDtoSchema>;
 export type FeedbackDto = z.infer<typeof FeedbackDtoSchema>;
+export type CareerCandidateFact = z.infer<typeof CareerCandidateFactSchema>;
+export type CareerCandidateFacts = z.infer<typeof CareerCandidateFactsSchema>;
+export type CreateCareerReview = z.infer<typeof CreateCareerReviewSchema>;
+export type CareerTestObservation = z.infer<typeof CareerTestObservationSchema>;
+export type CareerEvidenceRecord = z.infer<typeof CareerEvidenceRecordSchema>;
+export type CareerRequirement = z.infer<typeof CareerRequirementSchema>;
+export type CareerReviewAnalysis = z.infer<typeof CareerReviewAnalysisSchema>;
+export type CareerResumeDraft = z.infer<typeof CareerResumeDraftSchema>;
+export type CareerReviewStatus = z.infer<typeof CareerReviewStatusSchema>;
+export type CareerReviewDto = z.infer<typeof CareerReviewDtoSchema>;

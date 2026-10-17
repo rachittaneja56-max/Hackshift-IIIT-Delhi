@@ -6,6 +6,7 @@ import { SaveQueue } from '../src/attempts/save-queue.ts';
 import { artifactError, recoveryArtifact, sceneError, serializeElements } from '../src/lib/scenes.ts';
 import { feedbackLabel, observationSummary } from '../src/lib/presentation.ts';
 import { mentorPacket } from '../src/previews/model.ts';
+import { careerApi } from '../src/previews/career-api.ts';
 import { SceneSession } from '../src/drawing/scene-session.ts';
 
 const empty = () => ({ hld: null, lld: null, decisions: { keyScope: null, atomicity: null, payloadConflict: null }, variantId: null, aiCritique: null, repairJustification: null });
@@ -99,6 +100,32 @@ test('F1: API prefix, fresh token, envelope validation and ownership 404 stay ho
 });
 test('F1: non-JSON and malformed success never become mock data', async () => {
   for (const body of ['upstream unavailable', JSON.stringify({ data: [], meta: {} })]) { const api = new ApiClient('https://api.example.com', async () => 'token', () => {}, async () => new Response(body, { status: 200 })); await assert.rejects(api.courses(), error => error.code === 'INVALID_RESPONSE'); }
+});
+test('B5: career API adapter uses the v0.4 create, owned read and cached resume routes', async () => {
+  const requests = [];
+  const review = { id, clientRequestId: id, status: 'limited', input: { jobDescription: 'Build reliable APIs.', evidenceIds: [id], candidateFacts: null },
+    evidence: [{ evidenceId: id, attemptId: id, variantId: 'atomic', createdAt: '2026-10-18T00:00:00.000Z', provenance: {
+      isSynthetic: false, runnerKind: 'approved_variant', challenge: { slug: 'retry-safe-credit', version: 1 }, manifestSha256: 'manifest',
+      contentSha256: 'content', artifactSha256: 'artifact', suiteVersion: 'v1', suiteSha256: 'suite', implementationSha256: 'implementation',
+      appCommit: 'test', databaseVersion: 'PostgreSQL', runId: id, generation: 1, startedAt: '2026-10-18T00:00:00.000Z', finishedAt: '2026-10-18T00:00:01.000Z',
+    }, tests: [{ testId: 'T1', status: 'passed' }], limitations: ['Reviewed implementation only.'] }],
+    analysisVersion: 'career-review-v1', analysis: { source: 'rules', provider: null, model: null, requirements: [], limitations: ['Limited analysis.'] },
+    failureCode: null, resumeDraft: null, createdAt: '2026-10-18T00:00:00.000Z', updatedAt: '2026-10-18T00:00:00.000Z' };
+  const api = new ApiClient('https://api.example.com', async () => 'session', () => {}, async (url, options) => {
+    requests.push({ url, method: options.method, body: options.body });
+    return new Response(JSON.stringify({ data: review, meta: { requestId: id, isMock: false } }), { status: 200 });
+  });
+  const career = careerApi(api);
+  const input = { clientRequestId: id, jobDescription: 'Build reliable APIs.', evidenceIds: [id] };
+  assert.equal((await career.create(input)).id, id);
+  assert.equal((await career.get(id)).id, id);
+  assert.equal((await career.resume(id)).id, id);
+  assert.equal(requests[0].url, 'https://api.example.com/api/v1/career/reviews');
+  assert.deepEqual(JSON.parse(requests[0].body), input);
+  assert.equal(requests[1].url, `https://api.example.com/api/v1/career/reviews/${id}`);
+  assert.equal(requests[1].method, 'GET');
+  assert.equal(requests[2].url, `https://api.example.com/api/v1/career/reviews/${id}/resume`);
+  assert.deepEqual(JSON.parse(requests[2].body), {});
 });
 test('F2: one save in flight coalesces newer edits; stale acknowledgement never replaces local', async () => {
   const backend = fake(); const gate = defer(); let count = 0; const original = backend.api.save;

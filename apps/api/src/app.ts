@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import express, { type Express, type RequestHandler } from "express";
 import { z } from "zod";
-import { CreateAttemptSchema, SaveDraftSchema, SubmitSchema, EmptyRequestSchema } from "@trajectoryos/contracts";
+import { CreateAttemptSchema, CreateCareerReviewSchema, SaveDraftSchema, SubmitSchema, EmptyRequestSchema } from "@trajectoryos/contracts";
 import type { Pool } from "pg";
 import type { ApiConfig } from "./config.js";
 import { ApiError, databaseUnavailable, errorHandler, notFound } from "./errors.js";
@@ -13,9 +13,16 @@ import { EvaluationService } from "./evaluations/service.js";
 import { EvidenceService } from "./evidence/service.js";
 import { FeedbackService } from "./ai/service.js";
 import type { FeedbackProvider } from "./ai/provider.js";
+import { CareerReviewService } from "./career/service.js";
+import type { CareerAnalysisProvider } from "./career/provider.js";
 
 // Dependency injection is programmatic only; no HTTP/header/environment auth bypass.
-export type AppDependencies = { authentication?: RequestHandler; feedbackProvider?: FeedbackProvider | null };
+export type AppDependencies = {
+  authentication?: RequestHandler;
+  feedbackProvider?: FeedbackProvider | null;
+  careerProvider?: CareerAnalysisProvider | null;
+  careerDeadlineMs?: number;
+};
 export function createApp(config: ApiConfig, pool: Pool | null, dependencies: AppDependencies = {}): Express {
   const app = express();
   app.disable("x-powered-by");
@@ -57,6 +64,7 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
   const evaluations = pool ? new EvaluationService(pool) : null;
   const evidence = pool ? new EvidenceService(pool) : null;
   const feedback = pool ? new FeedbackService(pool, config, dependencies.feedbackProvider) : null;
+  const career = pool ? new CareerReviewService(pool, config, dependencies.careerProvider, dependencies.careerDeadlineMs) : null;
   const content = pool ? new ContentService(pool) : null;
   const service = () => { if (!attempts) throw databaseUnavailable(); return attempts; };
   const id = (value: unknown) => z.string().uuid().parse(value);
@@ -109,6 +117,20 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
     EmptyRequestSchema.parse(request.body);
     const result = await feedback.request(response.locals.userId, id(request.params.id));
     ok(response, result, result.status === "generating" ? 202 : 200);
+  });
+  app.post("/api/v1/career/reviews", async (request, response) => {
+    if (!career) throw databaseUnavailable();
+    const result = await career.create(response.locals.userId, CreateCareerReviewSchema.parse(request.body));
+    ok(response, result.review, result.statusCode);
+  });
+  app.get("/api/v1/career/reviews/:id", async (request, response) => {
+    if (!career) throw databaseUnavailable();
+    ok(response, await career.get(response.locals.userId, id(request.params.id)));
+  });
+  app.post("/api/v1/career/reviews/:id/resume", async (request, response) => {
+    if (!career) throw databaseUnavailable();
+    EmptyRequestSchema.parse(request.body);
+    ok(response, await career.resume(response.locals.userId, id(request.params.id)));
   });
   app.use((_request, _response, next) => next(notFound()));
   app.use(errorHandler);

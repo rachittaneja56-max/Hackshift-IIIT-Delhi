@@ -14,12 +14,13 @@
     "test": "tsx --test test/*.test.ts",
     "test:integration": "tsx --test --test-concurrency=1 test/*.integration.ts",
     "smoke:evaluation": "tsx src/challenges/retry-safe-credit/smoke.ts",
+    "smoke:career": "tsx src/career/smoke.ts",
     "smoke:ai": "tsx src/ai/smoke.ts"
   },
   "dependencies": {
     "@clerk/express": "^2.1.80",
     "@mistralai/mistralai": "^2.7.0",
-    "@trajectoryos/contracts": "0.3.0",
+    "@trajectoryos/contracts": "0.4.0",
     "dotenv": "^16.6.1",
     "express": "^5.3.0",
     "openai": "^7.36.0",

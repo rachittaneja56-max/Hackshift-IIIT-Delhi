@@ -1,7 +1,18 @@
 import { SubmissionReadyArtifactSchema, type Artifact, type AttemptDto, type EvaluationDto } from '@trajectoryos/contracts';
 import { ApiClientError, type ApiClient } from '../lib/api.ts';
 import { artifactError } from '../lib/scenes.ts';
-export const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+function stableJson(value: unknown): string {
+  if (value === undefined) return 'undefined';
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
+  if (Array.isArray(value)) return `[${value.map(item => item === undefined ? 'null' : stableJson(item)).join(',')}]`;
+  const record = value as Record<string, unknown>;
+  const entries = Object.keys(record)
+    .filter(key => record[key] !== undefined)
+    .sort()
+    .map(key => `${JSON.stringify(key)}:${stableJson(record[key])}`);
+  return `{${entries.join(',')}}`;
+}
+export const same = (a: unknown, b: unknown) => stableJson(a) === stableJson(b);
 export type SaveState = 'Saved' | 'Unsaved' | 'Saving' | 'Locally recovered' | 'Offline' | 'Conflict' | 'Frozen';
 export class SaveQueue {
   server: AttemptDto;
