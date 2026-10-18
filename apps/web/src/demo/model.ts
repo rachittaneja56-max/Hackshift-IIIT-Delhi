@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { candidateIds, candidateSchema, candidates, demoMeta, exampleLabel, getArtifacts, getCandidate, job, mentorQuestion, requirementReferences, type CandidateId, type DemoArtifact } from './fixtures';
 
-export const STORAGE_KEY = 'trajectoryos:fictional-journey:v1';
+export const STORAGE_KEY = 'trajectoryos:fictional-journey:v2';
+export const LEGACY_STORAGE_KEY = 'trajectoryos:fictional-journey:v1';
 const timestamp = z.string().datetime();
 const ids = z.array(z.string()).max(10).refine(values => new Set(values).size === values.length, 'Duplicate evidence IDs');
 const applicationSchema = z.object({
@@ -14,7 +15,7 @@ const decisionSchema = z.object({
   provenance: z.literal('human-demo-action'), meta: z.object({ isMock: z.literal(true), provenance: z.literal('fictional-demo') }).strict(),
 }).strict();
 const baseStateSchema = z.object({
-  version: z.literal(1), meta: z.object({ isMock: z.literal(true), provenance: z.literal('fictional-demo') }).strict(),
+  version: z.literal(2), meta: z.object({ isMock: z.literal(true), provenance: z.literal('fictional-demo') }).strict(),
   job: z.enum(['draft', 'published_demo']),
   applications: z.object({ ananya: applicationSchema, kabir: applicationSchema, meera: applicationSchema }).strict(),
   decisions: z.array(decisionSchema).max(200),
@@ -56,13 +57,13 @@ export const demoStateSchema = baseStateSchema.superRefine((state, context) => {
 
 export function initialDemoState(): DemoState {
   const seed = (id: CandidateId): DemoState['applications']['ananya'] => ({ status: 'submitted_demo', selected: getCandidate(id).artifacts.map(item => item.id), consent: true, submittedAt: '2026-10-18T04:00:00.000Z', origin: 'seeded_demo_application' });
-  return { version: 1, meta: demoMeta, job: 'draft', applications: {
+  return { version: 2, meta: demoMeta, job: 'published_demo', applications: {
     ananya: { status: 'not_started', selected: [], consent: false, submittedAt: null, origin: 'candidate_demo_action' },
     kabir: seed('kabir'), meera: seed('meera'),
   }, decisions: [], mentor: { status: 'not_requested', selected: [], question: mentorQuestion, consent: false, requestedAt: null } };
 }
 export type DemoAction =
-  | { type: 'publish' } | { type: 'reset' }
+  | { type: 'publish' } | { type: 'reset' } | { type: 'replay_publication' }
   | { type: 'prepare_application'; selected: string[] }
   | { type: 'application_consent'; consent: boolean } | { type: 'submit_application'; at: string }
   | { type: 'shortlist'; candidateId: CandidateId; confirmed: boolean; note: string; at: string }
@@ -75,6 +76,7 @@ export function isShortlisted(state: DemoState, id: CandidateId) { return state.
 export function transition(state: DemoState, action: DemoAction): DemoState {
   demoStateSchema.parse(state);
   if (action.type === 'reset') return initialDemoState();
+  if (action.type === 'replay_publication') return { ...initialDemoState(), job: 'draft' };
   const next = structuredClone(state);
   const app = next.applications.ananya;
   switch (action.type) {
@@ -124,8 +126,8 @@ export function requirementMapping(artifacts: DemoArtifact[]) {
   return [...job.requirements.map(requirement => {
     const references = requirementReferences[requirement.id]!;
     const support = artifacts.flatMap(item => [
-      ...item.checks.filter(check => references.checks.includes(check.id)).map(check => ({ id: `${item.id}:${check.id}`, text: `${check.id} · ${check.label}: synthetic ${check.status}`, limitation: 'Selected reviewed implementation only; independent authorship and production competence are unassessed.' })),
-      ...(references.kinds.includes(item.kind) ? [{ id: item.id, text: `${item.label} · ${item.source}`, limitation: 'Material is available for human review; its correctness and clarity are unassessed.' }] : []),
+      ...item.checks.filter(check => references.checks.includes(check.id)).map(check => ({ id: `${item.id}:${check.id}`, artifactId: item.id, outcome: check.status as 'passed' | 'failed' | 'review', text: `${check.id} · ${check.label}: synthetic ${check.status}`, limitation: 'Selected reviewed implementation only; independent authorship and production competence are unassessed.' })),
+      ...(references.kinds.includes(item.kind) ? [{ id: item.id, artifactId: item.id, outcome: 'review' as const, text: `${item.label} · ${item.source}`, limitation: 'Material is available for human review; its correctness and clarity are unassessed.' }] : []),
     ]);
     return { id: requirement.id, requirement: requirement.text, status: support.length ? 'Evidence available for review' : 'Not assessed from shared materials', support };
   }), ...['Operate backend systems in production.', 'Independently author the reviewed implementation.'].map((requirement, i) => ({ id: `unassessed-${i}`, requirement, status: 'Not assessed from shared materials', support: [] }))];
@@ -140,7 +142,7 @@ export function exampleResponse(state: DemoState) {
 export function loadDemoState(storage?: Pick<Storage, 'getItem'>): { state: DemoState; notice: string } {
   try {
     const raw = storage?.getItem(STORAGE_KEY);
-    if (!raw) return { state: initialDemoState(), notice: '' };
+    if (!raw) return { state: initialDemoState(), notice: storage?.getItem(LEGACY_STORAGE_KEY) ? 'The older demo was reset for the new published-opportunity scenario. Choose materials and confirm consent again.' : '' };
     if (raw.length > 50_000) throw new Error('Oversized state');
     const parsed = demoStateSchema.safeParse(JSON.parse(raw));
     if (!parsed.success) throw new Error('Invalid state');
