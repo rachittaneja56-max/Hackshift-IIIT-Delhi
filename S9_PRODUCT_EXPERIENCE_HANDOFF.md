@@ -2,8 +2,8 @@
 
 - **Project:** TrajectoryOs — HackShift 2026
 - **Status:** Product UX and S10 fictional employer/mentor journey implemented on local `main`; verified with repository tests and builds. Not publicly deployed.
-- **Implementation SHA:** `4400aa21ae5c02c980ddbab622fcc046fca9788d`
-**Scope:** Frontend only. No API routes, DTOs, database schema, migrations, dependencies or lockfiles changed.
+- **S9/S10 feature integration SHA:** `4400aa21ae5c02c980ddbab622fcc046fca9788d`
+- **Scope:** Frontend only. No API routes, DTOs, database schema, migrations, dependencies or lockfiles changed.
 
 ## Before/after audit
 
@@ -85,8 +85,11 @@ Remaining checks: browser/accessibility QA, an authorized disposable PostgreSQL 
 | `fd9f0770e2f324c853e86de7a01768e6c830867f` | Cherry-picked S10 fictional employer/mentor demo implementation. |
 | `935140e65bc3d18f8f45947cb1b54ef609b86d94` | Cherry-picked S10 source handoff. |
 | `4400aa21ae5c02c980ddbab622fcc046fca9788d` | `/demo/journey`, Opportunities entry, active navigation and connected workflow verification. |
+| `ecd29212eaeb931258d3f4d1c17273dcabd37725` | Preserved upstream Engineering Lab sandbox-interview entry. |
+| `bf22195057683057cf3f796d74ac3f58bdb9fb10` | Preserved upstream research documents by Naman. |
+| `6b1fa5b23976766262b71d7f369d95b4438fbb56` | Merge of the latest fetched `origin/main`, preserving both upstream commits with S9/S10. |
 
-The handoff documentation commit follows these product commits. The final pushed `origin/main` tip is reported in the delivery summary. No force push or public deployment is part of this work.
+The final pushed `origin/main` tip includes a documentation-only handoff commit after the integration tree above; its exact SHA is reported in the delivery summary. No force push or public deployment is part of this work.
 
 ## Three-minute HackShift walkthrough
 
