@@ -2,14 +2,14 @@ import { randomUUID } from "node:crypto";
 import { clerkMiddleware, getAuth } from "@clerk/express";
 import type { RequestHandler } from "express";
 import type { Pool } from "pg";
-import type { ApiConfig } from "../config.js";
+import { expandDevelopmentOrigins, type ApiConfig } from "../config.js";
 import { ApiError, databaseUnavailable } from "../errors.js";
 
 export function clerkAuthentication(config: ApiConfig): RequestHandler {
   const unauthorized = () => new ApiError(401, "UNAUTHENTICATED", "Sign in with a valid Clerk bearer token.");
   const middleware = config.CLERK_SECRET_KEY && config.CLERK_PUBLISHABLE_KEY ? clerkMiddleware({
     secretKey: config.CLERK_SECRET_KEY, publishableKey: config.CLERK_PUBLISHABLE_KEY,
-    authorizedParties: (config.CLERK_AUTHORIZED_PARTIES ?? config.CORS_ORIGINS ?? "http://127.0.0.1:5173").split(",").map(s => s.trim()),
+    authorizedParties: expandDevelopmentOrigins((config.CLERK_AUTHORIZED_PARTIES ?? config.CORS_ORIGINS ?? "http://127.0.0.1:5173").split(",").map(s => s.trim()), config.NODE_ENV),
     jwtKey: config.CLERK_JWT_KEY,
   }) : null;
   return (request, response, next) => {

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { CreateAttemptSchema, CreateCareerReviewSchema, SaveDraftSchema, SubmitSchema, EmptyRequestSchema,
   SandboxCreateRequestSchema, SandboxTurnRequestSchema, SandboxEditRequestSchema, DesignReviewRequestSchema } from "@trajectoryos/contracts";
 import type { Pool } from "pg";
-import type { ApiConfig } from "./config.js";
+import { expandDevelopmentOrigins, type ApiConfig } from "./config.js";
 import { ApiError, databaseUnavailable, errorHandler, notFound } from "./errors.js";
 import { clerkAuthentication, resolveUser } from "./auth/index.js";
 import { AttemptService, historyQuerySchema } from "./attempts/service.js";
@@ -43,7 +43,7 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
     response.setHeader("Cache-Control", "no-store");
     next();
   });
-  const origins = (config.CORS_ORIGINS ?? config.CLERK_AUTHORIZED_PARTIES ?? "http://127.0.0.1:5173").split(",").map(s => s.trim());
+  const origins = expandDevelopmentOrigins((config.CORS_ORIGINS ?? config.CLERK_AUTHORIZED_PARTIES ?? "http://127.0.0.1:5173").split(",").map(s => s.trim()), config.NODE_ENV);
   app.use((request, response, next) => {
     const origin = request.headers.origin;
     response.vary("Origin");

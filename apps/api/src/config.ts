@@ -84,6 +84,11 @@ const apiEnvironmentSchema = z
 
 export type ApiConfig = z.infer<typeof apiEnvironmentSchema>;
 
+export function expandDevelopmentOrigins(origins: string[], nodeEnv: ApiConfig["NODE_ENV"]) {
+  if (nodeEnv !== "development") return origins;
+  return [...new Set([...origins, "http://127.0.0.1:5173", "http://localhost:5173"])];
+}
+
 export function readApiConfig(environment: NodeJS.ProcessEnv = process.env) {
   const parsed = apiEnvironmentSchema.safeParse(environment);
   if (!parsed.success) {
