@@ -20,7 +20,7 @@ type TurnRow = { id: string; session_id: string; client_request_id: string; prom
 type RunRow = { id: string; session_id: string; client_request_id: string; kind: string; status: string; source_sha256: string;
   challenge_version: number; suite_sha256: string | null; implementation_sha256: string | null; source_revision: string | number | null;
   observation: TestObservation | null; created_at: Date; completed_at: Date | null };
-type JobRow = { id: string; session_id: string; kind: "create" | "turn" | "visible" | "grade"; request_id: string; payload: Record<string, unknown>;
+type JobRow = { id: string; session_id: string; kind: "create" | "turn" | "visible" | "grade" | "edit"; request_id: string; payload: Record<string, unknown>;
   attempts: number; claim_token: string; lease_until: Date };
 
 const MAX_ATTEMPTS = 3;
@@ -33,6 +33,12 @@ const isDatabaseError = (error: unknown) => Boolean(error && typeof error === "o
 function failedObservation(message: string, sourceSha256: string, suiteSha256: string): TestObservation {
   return { exitCode: null, stdout: "", stderr: "", durationMs: 0, passed: null, failed: null, tests: [], sourceSha256, suiteSha256, infrastructureFailure: message };
 }
+function workerFailureCode(error: unknown) {
+  if (!error || typeof error !== "object") return "UNKNOWN";
+  if ("code" in error && typeof error.code === "string") return error.code;
+  if (error instanceof Error) return error.name;
+  return "UNKNOWN";
+}
 
 export class SandboxService {
   private provider: SandboxProvider;
@@ -40,6 +46,8 @@ export class SandboxService {
   private wakeScheduled = false;
   private draining = false;
   private stopped = false;
+  private pollFailures = 0;
+  private pollRetryAt = 0;
   private pollTimer?: NodeJS.Timeout;
   private cleanupTimer?: NodeJS.Timeout;
   private drainPromise?: Promise<void>;
@@ -69,13 +77,21 @@ export class SandboxService {
     await this.drainPromise?.catch(() => undefined);
   }
   private wake() {
-    if (this.stopped || this.wakeScheduled || this.draining || !this.available()) return;
+    if (this.stopped || this.wakeScheduled || this.draining || !this.available() || Date.now() < this.pollRetryAt) return;
     this.wakeScheduled = true;
     setImmediate(() => {
       this.wakeScheduled = false;
       if (this.draining || this.stopped) return;
       this.drainPromise = this.drain();
-      void this.drainPromise.catch(() => console.error("Sandbox worker poll failed."));
+      void this.drainPromise.then(() => {
+        this.pollFailures = 0;
+        this.pollRetryAt = 0;
+      }).catch(error => {
+        this.pollFailures++;
+        const retrySeconds = Math.min(30, 2 ** Math.min(this.pollFailures - 1, 5));
+        this.pollRetryAt = Date.now() + retrySeconds * 1_000;
+        console.error(`Sandbox worker poll failed (${workerFailureCode(error)}); retrying in ${retrySeconds}s.`);
+      });
     });
   }
   private async drain() {
@@ -112,6 +128,7 @@ export class SandboxService {
       if (job.kind === "create") await this.executeCreate(job);
       else if (job.kind === "turn") await this.executeTurn(job);
       else if (job.kind === "visible") await this.executeVisible(job);
+      else if (job.kind === "edit") await this.executeSourceEdit(job);
       else await this.executeGrade(job);
     } catch (error) {
       const code = isDatabaseError(error) ? "DATABASE_INTERRUPTED" : error instanceof Error && /timeout/i.test(error.name) ? "PROVIDER_TIMEOUT" : "SANDBOX_OPERATION_FAILED";
@@ -153,6 +170,9 @@ export class SandboxService {
           [String(job.payload.runId ?? ""), session.current_sha256, visibleSuiteSha256, JSON.stringify(observation)]);
         await client.query("UPDATE app.sandbox_sessions SET status=CASE WHEN expires_at<=now() THEN 'expired' ELSE 'ready' END," +
           "failure_code=$2,updated_at=now() WHERE id=$1 AND status='processing'", [job.session_id, failureCode]);
+      } else if (job.kind === "edit") {
+        await client.query("UPDATE app.sandbox_sessions SET status='error',failure_code=$2,updated_at=now() WHERE id=$1 AND status='processing'",
+          [job.session_id, failureCode]);
       } else if (session.submitted_source && session.submitted_sha256) {
         const [turns, runs] = await Promise.all([
           client.query<TurnRow>("SELECT * FROM app.sandbox_turns WHERE session_id=$1 ORDER BY ordinal", [job.session_id]),
@@ -188,6 +208,8 @@ export class SandboxService {
         await this.pool.query("UPDATE app.sandbox_test_runs SET status='infrastructure_error',observation=$2::jsonb,completed_at=now() WHERE id=$1 AND status='running'",
           [String(job.payload.runId ?? ""), JSON.stringify(obs)]);
         await this.pool.query("UPDATE app.sandbox_sessions SET status=CASE WHEN expires_at<=now() THEN 'expired' ELSE 'ready' END,updated_at=now() WHERE id=$1 AND status='processing'", [job.session_id]);
+      } else if (job.kind === "edit") {
+        await this.pool.query("UPDATE app.sandbox_sessions SET status='error',failure_code='WORKER_RETRIES_EXHAUSTED',updated_at=now() WHERE id=$1 AND status='processing'", [job.session_id]);
       } else if (job.kind === "grade" && row.submitted_source && row.submitted_sha256) {
         const [turns, runs] = await Promise.all([
           this.pool.query<TurnRow>("SELECT * FROM app.sandbox_turns WHERE session_id=$1 ORDER BY ordinal", [job.session_id]),
@@ -245,6 +267,32 @@ export class SandboxService {
     if (result.created) this.wake();
     return { session: this.present(result.row), created: result.created };
   }
+  async saveSource(userId: string, id: string, clientRequestId: string, source: string) {
+    this.requireAvailable();
+    validateSource(source);
+    const sourceSha256 = hashSource(source);
+    const result = await transaction(this.pool, async client => {
+      const current = await client.query<SessionRow>("SELECT * FROM app.sandbox_sessions WHERE id=$1 AND user_id=$2 FOR UPDATE", [id, userId]);
+      const row = current.rows[0];
+      if (!row) throw notFound();
+      const prior = await client.query<{ payload: Record<string, unknown>; status: string }>(
+        "SELECT payload,status FROM app.sandbox_jobs WHERE session_id=$1 AND kind='edit' AND request_id=$2", [id, clientRequestId]);
+      if (prior.rows[0]) {
+        if (prior.rows[0].payload.sourceSha256 !== sourceSha256) throw new ApiError(409, "IDEMPOTENCY_KEY_REUSED", "That save request ID already belongs to different source.");
+        return { row, accepted: ["queued", "running"].includes(prior.rows[0].status) };
+      }
+      if (row.challenge_version !== challengeVersion) throw new ApiError(409, "CHALLENGE_VERSION_RETIRED", "This challenge version can no longer be edited.");
+      if (row.expires_at.getTime() <= Date.now()) throw new ApiError(409, "SESSION_EXPIRED", "This sandbox session has expired.");
+      if (row.status !== "ready") throw busy();
+      if (row.current_sha256 === sourceSha256) return { row, accepted: false };
+      await client.query("UPDATE app.sandbox_sessions SET status='processing',failure_code=NULL,updated_at=now() WHERE id=$1", [id]);
+      await this.enqueue(client, id, "edit", clientRequestId, { source, sourceSha256 });
+      const updated = await client.query<SessionRow>("SELECT * FROM app.sandbox_sessions WHERE id=$1", [id]);
+      return { row: updated.rows[0]!, accepted: true };
+    });
+    if (result.accepted) this.wake();
+    return { session: this.present(result.row), accepted: result.accepted };
+  }
   private async executeCreate(job: JobRow) {
     const row = (await this.pool.query<SessionRow>("SELECT * FROM app.sandbox_sessions WHERE id=$1", [job.session_id])).rows[0];
     if (!row || row.status !== "creating") throw new Error("Session is no longer awaiting sandbox creation.");
@@ -298,13 +346,13 @@ export class SandboxService {
       return { files: listedFiles.map(path => ({ path, editable: path === editablePath, content: path === editablePath ? source : projectFiles[path]!,
         changed: path === editablePath && row.submitted_sha256 !== starterSha256 })), starterSource: row.starter_source, currentSha256: row.submitted_sha256 };
     }
-    if (!row.sandbox_id || !["ready", "processing", "freezing", "grading"].includes(row.status)) throw busy();
-    const files = [];
-    for (const path of listedFiles) files.push({ path, editable: path === editablePath, content: await this.provider.readFile(row.sandbox_id, path),
-      changed: path === editablePath && row.current_sha256 !== starterSha256 });
-    const source = files.find(file => file.path === editablePath)!.content;
-    const reconciled = await this.reconcileSource(row, source);
-    return { files, starterSource: row.starter_source, currentSha256: reconciled.sourceHash };
+    const source = row.current_source;
+    return { files: listedFiles.map(path => ({ path, editable: path === editablePath, content: path === editablePath ? source : projectFiles[path]!,
+      changed: path === editablePath && row.current_sha256 !== starterSha256 })), starterSource: row.starter_source, currentSha256: row.current_sha256 };
+  }
+  challengeFiles() {
+    return { files: listedFiles.map(path => ({ path, editable: path === editablePath, content: projectFiles[path]!, changed: false })),
+      starterSource, currentSha256: starterSha256 };
   }
   private presentTurn(turn: TurnRow) { return { id: turn.id, ordinal: turn.ordinal, prompt: turn.prompt, status: turn.status, response: turn.response,
     model: turn.model, toolEvents: turn.tool_events, sourceSha256: turn.source_sha256, failureCode: turn.failure_code, createdAt: turn.created_at }; }
@@ -359,6 +407,28 @@ export class SandboxService {
       await client.query("UPDATE app.sandbox_turns SET status='completed',response=$2,model=$3,source_sha256=$4,updated_at=now() WHERE id=$1 AND status='processing'",
         [turn.id, outcome.response.slice(0, 6_000), outcome.model, current.rows[0].current_sha256]);
       await client.query("UPDATE app.sandbox_sessions SET status=CASE WHEN expires_at<=now() THEN 'expired' ELSE 'ready' END,updated_at=now() WHERE id=$1 AND status='processing'", [job.session_id]);
+      await this.completeJob(client, job);
+    });
+  }
+  private async executeSourceEdit(job: JobRow) {
+    const source = String(job.payload.source ?? "");
+    validateSource(source);
+    const sourceSha256 = hashSource(source);
+    if (job.payload.sourceSha256 !== sourceSha256) throw new Error("Accepted source hash did not match the queued edit.");
+    const session = (await this.pool.query<SessionRow>("SELECT * FROM app.sandbox_sessions WHERE id=$1", [job.session_id])).rows[0];
+    if (!session?.sandbox_id || session.status !== "processing" || session.challenge_version !== challengeVersion) throw new Error("Source edit is no longer runnable.");
+    const written = await this.provider.writeFile(session.sandbox_id, editablePath, source);
+    if (written.sha256 !== sourceSha256) throw new Error("Sandbox source readback differed from the accepted edit.");
+    await transaction(this.pool, async client => {
+      const claim = await client.query("SELECT 1 FROM app.sandbox_jobs WHERE id=$1 AND status='running' AND claim_token=$2 FOR UPDATE", [job.id, job.claim_token]);
+      if (!claim.rowCount) throw new Error("Sandbox job lease was lost before source edit persistence.");
+      const current = await client.query<SessionRow>("SELECT * FROM app.sandbox_sessions WHERE id=$1 FOR UPDATE", [job.session_id]);
+      const row = current.rows[0];
+      if (!row || row.status !== "processing") throw busy();
+      const changed = row.current_sha256 !== sourceSha256;
+      await client.query("UPDATE app.sandbox_sessions SET current_source=$2,current_sha256=$3," +
+        "source_revision=source_revision+CASE WHEN $4 THEN 1 ELSE 0 END,status=CASE WHEN expires_at<=now() THEN 'expired' ELSE 'ready' END," +
+        "failure_code=NULL,updated_at=now() WHERE id=$1", [job.session_id, source, sourceSha256, changed]);
       await this.completeJob(client, job);
     });
   }

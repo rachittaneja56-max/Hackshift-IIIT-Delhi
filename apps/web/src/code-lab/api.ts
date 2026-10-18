@@ -26,9 +26,12 @@ export function sandboxApi(api: ApiClient) {
   const base = "/sandbox/sessions";
   return {
     availability: () => api.request("/sandbox/availability", availabilitySchema),
+    challengeFiles: () => api.request("/sandbox/challenge/files", filesSchema),
     start: (clientRequestId: string) => api.request(base, sessionSchema, "POST", { clientRequestId }),
     session: (sessionId: string) => api.request(base + "/" + encodeURIComponent(sessionId), sessionSchema),
     files: (sessionId: string) => api.request(base + "/" + encodeURIComponent(sessionId) + "/files", filesSchema),
+    saveSource: (sessionId: string, clientRequestId: string, source: string) => api.request(
+      base + "/" + encodeURIComponent(sessionId) + "/source", sessionSchema, "POST", { clientRequestId, source }),
     send: (sessionId: string, clientRequestId: string, prompt: string) => api.request(
       base + "/" + encodeURIComponent(sessionId) + "/turns", turnSchema, "POST", { clientRequestId, prompt }),
     turn: (sessionId: string, turnId: string) => api.request(

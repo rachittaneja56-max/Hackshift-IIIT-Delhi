@@ -6,6 +6,7 @@ const timestamp = z.string().datetime({ offset: true });
 
 export const SandboxCreateRequestSchema = z.object({ clientRequestId: uuid }).strict();
 export const SandboxTurnRequestSchema = SandboxCreateRequestSchema.extend({ prompt: z.string().trim().min(1).max(4_000) }).strict();
+export const SandboxEditRequestSchema = SandboxCreateRequestSchema.extend({ source: z.string().max(32_768) }).strict();
 
 export const SandboxTestCaseSchema = z.object({
   name: z.string().min(1).max(300),

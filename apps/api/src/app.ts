@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import express, { type Express, type RequestHandler } from "express";
 import { z } from "zod";
 import { CreateAttemptSchema, CreateCareerReviewSchema, SaveDraftSchema, SubmitSchema, EmptyRequestSchema,
-  SandboxCreateRequestSchema, SandboxTurnRequestSchema, DesignReviewRequestSchema } from "@trajectoryos/contracts";
+  SandboxCreateRequestSchema, SandboxTurnRequestSchema, SandboxEditRequestSchema, DesignReviewRequestSchema } from "@trajectoryos/contracts";
 import type { Pool } from "pg";
 import type { ApiConfig } from "./config.js";
 import { ApiError, databaseUnavailable, errorHandler, notFound } from "./errors.js";
@@ -82,6 +82,7 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
   const sandboxService = () => { if (!sandbox) throw databaseUnavailable(); return sandbox; };
   const sandboxRequest = SandboxCreateRequestSchema;
   const sandboxTurn = SandboxTurnRequestSchema;
+  const sandboxEdit = SandboxEditRequestSchema;
   const service = () => { if (!attempts) throw databaseUnavailable(); return attempts; };
   const id = (value: unknown) => z.string().uuid().parse(value);
   app.get("/api/v1/courses", async (_request, response) => {
@@ -166,11 +167,19 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
   app.get("/api/v1/sandbox/availability", (_request, response) => {
     ok(response, { available: sandbox?.available() ?? false, challengeSlug: "rate-limiter-debugging", challengeVersion: 2 });
   });
+  app.get("/api/v1/sandbox/challenge/files", (_request, response) => {
+    ok(response, sandboxService().challengeFiles());
+  });
   app.get("/api/v1/sandbox/sessions/:id", async (request, response) => {
     ok(response, await sandboxService().get(response.locals.userId, id(request.params.id)));
   });
   app.get("/api/v1/sandbox/sessions/:id/files", async (request, response) => {
     ok(response, await sandboxService().files(response.locals.userId, id(request.params.id)));
+  });
+  app.post("/api/v1/sandbox/sessions/:id/source", async (request, response) => {
+    const body = sandboxEdit.parse(request.body);
+    const result = await sandboxService().saveSource(response.locals.userId, id(request.params.id), body.clientRequestId, body.source);
+    ok(response, result.session, result.accepted ? 202 : 200);
   });
   app.post("/api/v1/sandbox/sessions/:id/turns", async (request, response) => {
     const body = sandboxTurn.parse(request.body);
