@@ -1,11 +1,22 @@
+import { Link } from '../app/router';
+
 const stages = [
-  ['01', 'LEARN', 'Networking and database fundamentals in the available seeded retry lesson.'],
-  ['02', 'DESIGN', 'Save HLD and LLD diagrams in Excalidraw.'],
-  ['03', 'INVESTIGATE', 'Compare reviewed code variants or debug in the separate sandbox lab.'],
-  ['04', 'TEST', 'Inspect recorded PostgreSQL results or sandbox grading, depending on the lab.'],
-  ['05', 'SAVE EVIDENCE', 'Keep decisions, source context and observed behavior together.'],
+  ['01', 'Read the failure', 'A short lesson introduces retries and database boundaries.'],
+  ['02', 'Design a response', 'Draw HLD and LLD. Choose how writes should commit.'],
+  ['03', 'Investigate code', 'Compare reviewed variants, or try the separate AI debugging lab.'],
+  ['04', 'Run the checks', 'Examine recorded PostgreSQL results or sandbox test output.'],
+  ['05', 'Keep the record', 'Save the choices, observations, and failures together.'],
 ] as const;
 
 export function EngineeringJourney() {
-  return <section className="lp-section lp-journey" id="how-it-works" aria-labelledby="lp-journey-title"><div className="lp-section-intro"><span className="lp-kicker">02 / THE WORKFLOW</span><h2 id="lp-journey-title">One question.<br /><em>A connected record of work.</em></h2><p>Concepts, diagrams, investigation and results stay linked, so a conversation can begin with specific decisions and observations.</p></div><ol className="lp-journey-track">{stages.map(([number, title, detail]) => <li key={number}><span className="lp-journey-number">{number}</span><h3>{title}</h3><p>{detail}</p></li>)}</ol><div className="lp-journey-branches"><div><span className="lp-branch-icon" aria-hidden="true">↗</span><h3>MENTOR GUIDANCE</h3><p>Explore a fictional contextual feedback example. There is no live mentor messaging.</p></div><div><span className="lp-branch-icon" aria-hidden="true">↗</span><h3>CAREER OPPORTUNITIES</h3><p>Analyze a job description privately, then explore fictional employer sharing and manual review.</p></div></div></section>;
+  return <section className="lp-section lp-journey" id="how-it-works" aria-labelledby="lp-journey-title">
+    <div className="lp-section-intro lp-journey-intro"><span className="lp-kicker">02 / THE WORK</span><h2 id="lp-journey-title">A learning path that ends with <span>something to examine.</span></h2><p>Not another completed-course badge. A sequence of decisions and actual test observations that stays attached to the work.</p></div>
+    <ol className="lp-journey-track">{stages.map(([number,title,detail]) => <li key={number}><span className="lp-journey-number">{number}</span><h3>{title}</h3><p>{detail}</p></li>)}</ol>
+    <div className="lp-journey-outcomes">
+      <div className="lp-outcomes-lead"><span className="lp-kicker">WHAT CAN HAPPEN NEXT?</span><p>The record is useful because it travels with the question, not because it claims to certify a student.</p></div>
+      <div className="lp-outcome"><span className="lp-outcome-number">A</span><h3>More focused guidance</h3><p>Select an attempt and a specific question. Preview the context a mentor could receive.</p><Link href="/demo/journey">See the mentor example ↗</Link></div>
+      <div className="lp-outcome"><span className="lp-outcome-number">B</span><h3>A better career conversation</h3><p>Compare role requirements with selected engineering evidence, including gaps and failures.</p><Link href="/demo/journey">See the employer example ↗</Link></div>
+    </div>
+    <p className="lp-footnote">The mentor and employer interactions in the linked journey are fictional demonstrations. No messages or applications are sent.</p>
+  </section>;
 }
