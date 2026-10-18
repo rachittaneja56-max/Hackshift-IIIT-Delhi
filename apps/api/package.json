@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json && node scripts/package-runtime-assets.mjs",
+    "pretypecheck": "npm run build --workspace=@trajectoryos/contracts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "start": "node dist/index.js",
     "migrate": "tsx src/db/cli.ts",
