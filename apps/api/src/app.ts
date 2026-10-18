@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import express, { type Express, type RequestHandler } from "express";
 import { z } from "zod";
 import { CreateAttemptSchema, CreateCareerReviewSchema, SaveDraftSchema, SubmitSchema, EmptyRequestSchema,
-  SandboxCreateRequestSchema, SandboxTurnRequestSchema } from "@trajectoryos/contracts";
+  SandboxCreateRequestSchema, SandboxTurnRequestSchema, DesignReviewRequestSchema } from "@trajectoryos/contracts";
 import type { Pool } from "pg";
 import type { ApiConfig } from "./config.js";
 import { ApiError, databaseUnavailable, errorHandler, notFound } from "./errors.js";
@@ -19,6 +19,8 @@ import type { CareerAnalysisProvider } from "./career/provider.js";
 import { SandboxService } from "./sandbox/service.js";
 import type { SandboxProvider } from "./sandbox/provider.js";
 import type { SandboxAgentLike } from "./sandbox/agent.js";
+import { DesignReviewService } from "./design-review/service.js";
+import type { DesignReviewProvider } from "./design-review/provider.js";
 
 // Dependency injection is programmatic only; no HTTP/header/environment auth bypass.
 export type AppDependencies = {
@@ -28,6 +30,8 @@ export type AppDependencies = {
   careerDeadlineMs?: number;
   sandboxProvider?: SandboxProvider;
   sandboxAgent?: SandboxAgentLike;
+  designReviewProvider?: DesignReviewProvider | null;
+  designReviewDeadlineMs?: number;
 };
 export function createApp(config: ApiConfig, pool: Pool | null, dependencies: AppDependencies = {}): Express {
   const app = express();
@@ -70,6 +74,7 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
   const evaluations = pool ? new EvaluationService(pool) : null;
   const evidence = pool ? new EvidenceService(pool) : null;
   const feedback = pool ? new FeedbackService(pool, config, dependencies.feedbackProvider) : null;
+  const designReview = pool ? new DesignReviewService(pool, config, dependencies.designReviewProvider, dependencies.designReviewDeadlineMs) : null;
   const career = pool ? new CareerReviewService(pool, config, dependencies.careerProvider, dependencies.careerDeadlineMs) : null;
   const content = pool ? new ContentService(pool) : null;
   const sandbox = pool ? new SandboxService(pool, config, dependencies.sandboxProvider, dependencies.sandboxAgent) : null;
@@ -127,6 +132,16 @@ export function createApp(config: ApiConfig, pool: Pool | null, dependencies: Ap
     if (!feedback) throw databaseUnavailable();
     EmptyRequestSchema.parse(request.body);
     const result = await feedback.request(response.locals.userId, id(request.params.id));
+    ok(response, result, result.status === "generating" ? 202 : 200);
+  });
+  app.get("/api/v1/evidence/:id/design-review", async (request, response) => {
+    if (!designReview) throw databaseUnavailable();
+    ok(response, await designReview.get(response.locals.userId, id(request.params.id)));
+  });
+  app.post("/api/v1/evidence/:id/design-review", async (request, response) => {
+    if (!designReview) throw databaseUnavailable();
+    const body = DesignReviewRequestSchema.parse(request.body);
+    const result = await designReview.request(response.locals.userId, id(request.params.id), body.retry ?? false);
     ok(response, result, result.status === "generating" ? 202 : 200);
   });
   app.post("/api/v1/career/reviews", async (request, response) => {

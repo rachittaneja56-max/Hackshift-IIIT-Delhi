@@ -11,6 +11,8 @@ import {
   AttemptDtoSchema,
   FaultyAiSuggestionSchema,
   SubmissionReadyArtifactSchema,
+  DesignReviewDtoSchema,
+  DesignReviewRequestSchema,
 } from "../packages/contracts/dist/index.js";
 import { contentManifest, variantFiles } from "../apps/api/dist/content/index.js";
 import { suiteSha256 } from "../apps/api/dist/challenges/retry-safe-credit/suite.js";
@@ -31,6 +33,10 @@ const faultySuggestion = {
   source: "curated_fixture",
 };
 FaultyAiSuggestionSchema.parse(faultySuggestion);
+DesignReviewRequestSchema.parse({ retry: true });
+DesignReviewDtoSchema.parse({ id: null, evidenceId: "11111111-1111-4111-8111-111111111111", artifactSha256: "a".repeat(64),
+  reviewVersion: "design-review-v1", status: "not_requested", source: null, provider: null, model: null, hld: null, lld: null,
+  limitations: [], failureCode: null, createdAt: null, updatedAt: null });
 
 const readyArtifact = {
   ...draftExample.artifact,
@@ -67,6 +73,7 @@ assert.deepEqual(packagedMigrations.filter(name => /^\d+.*\.sql$/.test(name)).so
   "004_career_reviews.sql",
   "005_sandbox.sql",
   "006_sandbox_v2_recovery.sql",
+  "007_design_reviews.sql",
 ]);
 for (const path of ["package.json", "package-lock.json", "test/private.test.ts"]) {
   await readFile(new URL("../apps/api/dist/sandbox/challenge/" + path, import.meta.url), "utf8");

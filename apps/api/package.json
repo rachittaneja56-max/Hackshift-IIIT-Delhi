@@ -22,7 +22,7 @@
   "dependencies": {
     "@clerk/express": "^2.1.80",
     "@mistralai/mistralai": "^2.7.0",
-    "@trajectoryos/contracts": "0.5.0",
+    "@trajectoryos/contracts": "0.6.0",
     "dotenv": "^16.6.1",
     "e2b": "2.53.1",
     "express": "^5.3.0",

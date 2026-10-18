@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const API_CONTRACT_VERSION = "0.5" as const;
+export const API_CONTRACT_VERSION = "0.6" as const;
 
 export const ApiMetaSchema = z
   .object({
@@ -615,3 +615,4 @@ export type CareerReviewStatus = z.infer<typeof CareerReviewStatusSchema>;
 export type CareerReviewDto = z.infer<typeof CareerReviewDtoSchema>;
 
 export * from "./sandbox.js";
+export * from "./design-review.js";
