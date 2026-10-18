@@ -327,6 +327,7 @@ test('S12 shared chronology is derived from selected artifacts only, never priva
   assert.deepEqual(history.sharedHistory([]), []);
   assert.deepEqual(history.sharedHistory([{ ...fixtures.getArtifacts('ananya', ['a-hld'])[0], content: 'injected private record' }]), []);
   assert.deepEqual(history.sharedHistory(fixtures.getArtifacts('kabir', ['b-tests'])), []);
+  assert.equal(history.sharedHistory(fixtures.getArtifacts('ananya', ['a-tests', 'a-failure'])).filter(item => item.type === 'observation').length, 1, 'An excerpt of the same result cannot become a second test run');
 });
 
 test('S12 employer profile remains unchanged by private mentor review and never infers unshared concurrency failure', () => {

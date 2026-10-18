@@ -37,12 +37,14 @@ export const learningHistory = [
 /** Receives only supplied materials. It cannot look up a private candidate by ID. */
 export function artifactHistory(artifacts: readonly DemoArtifact[]): HistoryEvent[] {
   return artifacts.flatMap(item => {
+    // The concurrency excerpt is the same v1 observation, never another run.
+    if (item.id === 'a-failure' && artifacts.some(other => other.id === 'a-tests')) return [];
     if (item.kind === 'hld' || item.kind === 'lld') return [event(`design-${item.id}`, 'design', `Created ${item.kind.toUpperCase()} design summary`, item.label, [item.id])];
     if (item.kind === 'reasoning' || item.kind === 'critique') return [event(`writing-${item.id}`, 'investigation', item.kind === 'reasoning' ? 'Investigated transaction boundaries' : 'Questioned an engineering suggestion', item.label, [item.id])];
     if (item.kind === 'tests') {
       const passed = item.checks.filter(check => check.status === 'passed').length;
       const failed = item.checks.filter(check => check.status === 'failed');
-      return [event(`observed-${item.id}`, 'observation', item.checks.length === 7 ? `Reviewed ${passed}/7 synthetic checks passed` : 'Inspected a synthetic observation', failed.length ? `${failed.length === 1 ? 'Concurrent-retry check failed' : 'Failed checks recorded'} · duplicate credit under concurrent requests. Selected implementation; independent authorship unassessed.` : 'Selected synthetic observations available; production behavior and authorship unassessed.', [item.id])];
+      return [event(`observed-${item.id}`, 'observation', item.checks.length === 7 ? `Reviewed ${passed}/7 synthetic checks passed` : 'Inspected a synthetic observation', failed.length ? `${item.id === 'a-failure' ? 'Excerpt of the same v1 synthetic observation. ' : ''}${failed.length === 1 ? 'Concurrent-retry check failed' : 'Failed checks recorded'} · duplicate credit under concurrent requests. Selected implementation; independent authorship unassessed.` : 'Selected synthetic observations available; production behavior and authorship unassessed.', [item.id])];
     }
     return [];
   }).sort((a, b) => ['design', 'investigation', 'observation'].indexOf(a.type) - ['design', 'investigation', 'observation'].indexOf(b.type));
