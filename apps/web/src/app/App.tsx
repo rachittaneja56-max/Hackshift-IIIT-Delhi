@@ -10,6 +10,7 @@ import { HistoryPage, EvidencePage } from '../evidence/pages';
 import { MentorPreview, CareerPreview } from '../previews/pages';
 import { CodeLab } from '../code-lab/CodeLab';
 import { PracticeHome } from '../practice/pages';
+import { EmployerMentorDemo } from '../demo/EmployerMentorDemo';
 import { activePrimaryNavigation, primaryNavigation } from './navigation';
 function SystemAppearance() {
   useEffect(() => {
@@ -39,6 +40,7 @@ export function AppRoutes() {
   if (path === '/lab') return <LabLanding />;
   if (path === '/practice') return <PracticeHome />;
   if (path === '/evidence') return <HistoryPage />;
+  if (path === '/demo/journey') return <EmployerMentorDemo />;
   if (path === '/mentors/preview') return <MentorPreview />;
   if (path === '/career/preview' || path === '/opportunities') return <CareerPreview />;
   if (path === '/learn' || path === '/') return <LearnHome />;

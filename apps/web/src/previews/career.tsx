@@ -30,6 +30,13 @@ export function CareerEmptyEvidence() {
   return <div className="career-no-evidence"><h4>Complete one engineering lab to create test-backed evidence.</h4><p>Draft drawings and evaluation errors do not contain completed test observations, so they cannot be selected here.</p><Link className="button" href="/practice">Open practice challenges →</Link></div>;
 }
 
+export function CareerDemoEntry() {
+  return <section className="career-demo-entry" aria-labelledby="career-demo-heading">
+    <div><span className="eyebrow">Separate fictional walkthrough</span><h2 id="career-demo-heading">Explore company and mentor review.</h2><p>Follow a synthetic candidate packet through manual employer review and a seeded mentor example. This demo uses no real attempts, evidence or career APIs.</p></div>
+    <Link className="button" href="/demo/journey">Open fictional demo</Link>
+  </section>;
+}
+
 export function CareerPreview() {
   const state = useOwnedSelection({ loadSelectedRecord: false });
   const { api, userId } = useApi();
@@ -117,6 +124,7 @@ export function CareerPreview() {
   return <main id="main-content" tabIndex={-1} className="page preview-page career-page">
     <p className="private-note">Private to your account · no employer receives your job description or evidence.</p>
     <PageTitle eyebrow="Opportunities / Evidence review" title="Understand how your engineering work relates to a job."><p className="lead">Compare a real job description with completed test evidence, then separate observed results from self-reported facts.</p></PageTitle>
+    <CareerDemoEntry />
     <CareerSteps stage={stage} complete={complete} />
 
     <section className="career-real-review" aria-labelledby="career-input-heading">

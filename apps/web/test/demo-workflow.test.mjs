@@ -158,6 +158,33 @@ test('S10 complete connected journey resets to initial fixture state without mut
   assert.deepEqual(reset, initialDemoState());
   assert.equal(state.decisions.length, 1);
 });
+test('S10 end-to-end application, employer evidence review, human shortlist and mentor example remain fictional', () => {
+  let state = transition(initialDemoState(), { type: 'publish' });
+  state = transition(state, { type: 'prepare_application', selected: ['a-hld', 'a-tests', 'a-reasoning'] });
+  state = transition(state, { type: 'application_consent', consent: true });
+  state = transition(state, { type: 'submit_application', at });
+  assert.equal(state.applications.ananya.status, 'submitted_demo');
+  assert.deepEqual(employerApplication(state, 'ananya').artifacts.map(item => item.id), ['a-hld', 'a-tests', 'a-reasoning']);
+  const employer = render(ui.EmployerProfile, { state, id: 'ananya' });
+  assert.match(employer, /Fictional profile/);
+  assert.match(employer, /failed.*synthetic/);
+  assert.match(employer, /Not assessed from shared materials/);
+  assert.doesNotMatch(employer, /a-critique|a-profile|a-lld/);
+  state = transition(state, { type: 'shortlist', candidateId: 'ananya', confirmed: true, note: 'Review transaction reasoning.', at: later });
+  assert.equal(isShortlisted(state, 'ananya'), true);
+  state = transition(state, { type: 'prepare_mentor', selected: ['a-failure', 'a-reasoning'], question: fixtures.mentorQuestion });
+  state = transition(state, { type: 'mentor_consent', consent: true });
+  state = transition(state, { type: 'request_mentor', at: '2026-10-18T05:02:00.000Z' });
+  const response = exampleResponse(state);
+  assert.equal(response.references.includes('a-failure'), true);
+  assert.equal(response.references.includes('a-critique'), false);
+  assert.match(response.label, /fictional demonstration, not a real message/);
+  const mentorReview = render(ui.MentorPacketView, { state });
+  assert.match(mentorReview, /Example mentor response/);
+  assert.match(mentorReview, /Revisit the transaction boundary in LLD/);
+  assert.equal(employerApplication(state, 'kabir').meta.isMock, true);
+});
+
 test('S10 versioned browser persistence validates structure, references, consent and semantic state', () => {
   const state = submitted(['a-tests']);
   let raw;

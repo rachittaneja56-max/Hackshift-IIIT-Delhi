@@ -235,6 +235,7 @@ test('S9: primary navigation exposes practice and opportunities while preserving
   assert.equal(activePrimaryNavigation('/evidence/attempts/evidence-id'), 'work');
   assert.equal(activePrimaryNavigation('/career/preview'), 'opportunities');
   assert.equal(activePrimaryNavigation('/opportunities'), 'opportunities');
+  assert.equal(activePrimaryNavigation('/demo/journey'), 'opportunities');
 });
 
 test('S9: save state uses learner wording while preserving technical revision detail separately', () => {

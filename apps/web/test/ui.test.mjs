@@ -108,3 +108,19 @@ test('S9: career empty state points to a real practice route without implying dr
   assert.match(html, /Draft drawings and evaluation errors do not contain completed test observations/);
   assert.match(html, /href="\/practice"/);
 });
+
+test('S10: Opportunities links to a distinct fictional demo and the route keeps the S9 shell', async () => {
+  const { CareerDemoEntry } = await server.ssrLoadModule('/src/previews/career.tsx');
+  const { AppRoutes, Header } = await server.ssrLoadModule('/src/app/App.tsx');
+  const { RouteContext } = await server.ssrLoadModule('/src/app/router.tsx');
+  const location = { path: '/demo/journey', search: '', navigate: () => {} };
+  const entry = renderToStaticMarkup(createElement(CareerDemoEntry));
+  const route = renderToStaticMarkup(createElement(RouteContext.Provider, { value: location }, createElement(AppRoutes)));
+  const header = renderToStaticMarkup(createElement(RouteContext.Provider, { value: location }, createElement(Header, { account: false })));
+  assert.match(entry, /Separate fictional walkthrough/);
+  assert.match(entry, /no real attempts, evidence or career APIs/);
+  assert.match(entry, /href="\/demo\/journey"/);
+  assert.match(route, /Fictional demo/);
+  assert.match(route, /Not externally sent/);
+  assert.match(header, /<a(?=[^>]*href="\/opportunities")(?=[^>]*aria-current="page")[^>]*>Opportunities/);
+});
