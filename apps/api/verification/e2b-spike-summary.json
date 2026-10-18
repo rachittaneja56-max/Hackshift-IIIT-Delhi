@@ -1,0 +1,16 @@
+{
+  "dateUtc": "2026-10-17T20:43:05Z",
+  "sdk": "e2b@2.56.0",
+  "sandboxNode": "v20.9.0",
+  "runner": "tsx@4.20.0",
+  "sandboxId": "itgp2xeqqk0w4vv1g8sx1",
+  "createDurationMs": 1462,
+  "install": { "exitCode": 0, "durationMs": 2946 },
+  "before": { "exitCode": 1, "passed": 0, "failed": 3, "durationMs": 1797 },
+  "after": { "exitCode": 0, "passed": 3, "failed": 0, "durationMs": 922 },
+  "sourceReadMatchedStarter": true,
+  "sourceReadMatchedRepair": true,
+  "killed": true,
+  "runningAfterKill": false,
+  "notes": "Both test commands emitted TAP output on stdout and no stderr. The initial run observed boundary, key-scope and Retry-After assertion failures. The repaired run passed all three. A prior probe with Node's strip-types flag failed because the E2B base image uses Node 20.9.0; that sandbox was also killed and confirmed stopped. E2B internet access was enabled only to install the pinned TypeScript runner in this spike."
+}

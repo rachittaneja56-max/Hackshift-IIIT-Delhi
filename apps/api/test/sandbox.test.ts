@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+<<<<<<< HEAD
 import { challengeSourceSha256, editablePath, isListedFile, starterSha256, visibleSuiteSha256 } from "../src/sandbox/challenge/files.js";
 import { privateSuiteSha256, privateTestNames, visibleTestNames } from "../src/sandbox/challenge/grader.js";
 import { hashSource, parseTestOutput, validateSource } from "../src/sandbox/provider.js";
@@ -51,4 +52,14 @@ test("source validation and challenge hashes identify reconstructed v2 inputs", 
   assert.equal(challengeSourceSha256.length, 64);
   assert.throws(() => validateSource("x".repeat(32_769)), /size limit/i);
   assert.throws(() => validateSource("bad\0source"), /size limit/i);
+=======
+import { E2BSandboxProvider, validateSource } from "../src/sandbox/provider.js";
+
+test("sandbox source and path rules reject oversized and traversing inputs before remote access", async () => {
+  assert.throws(() => validateSource("x".repeat(32_769)), (error: { code?: string }) => error.code === "SOURCE_TOO_LARGE");
+  assert.throws(() => validateSource("x\0y"), (error: { code?: string }) => error.code === "INVALID_SOURCE");
+  const provider = new E2BSandboxProvider("no-remote-call");
+  await assert.rejects(provider.readFile("not-a-sandbox", "../../secret"), (error: { code?: string }) => error.code === "FILE_NOT_ALLOWED");
+  await assert.rejects(provider.writeFile("not-a-sandbox", "tests/hidden.test.ts", "x"), (error: { code?: string }) => error.code === "FILE_NOT_EDITABLE");
+>>>>>>> efc913c (sandbox frontend)
 });

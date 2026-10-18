@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { createHash, randomUUID } from "node:crypto";
 import { CommandExitError, Sandbox, TimeoutError, type CommandHandle, type SandboxApiOpts, type SandboxConnectOpts, type SandboxInfo, type SandboxOpts } from "e2b";
 import { challengeSourceSha256, editablePath, isListedFile, listedFiles, packageLock, packageLockSha256, projectFiles, starterSource, visibleSuiteSha256 } from "./challenge/files.js";
@@ -12,6 +13,21 @@ const SDK_VERSION = "2.53.1";
 const RUNNER_VERSION = "tsx@4.20.0";
 
 export type TestCaseObservation = { name: string; status: "passed" | "failed" };
+=======
+import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { CommandExitError, FileType, Sandbox, type CommandResult } from "e2b";
+import { ApiError } from "../errors.js";
+import { editablePath, hiddenTestSource, listedFiles, projectFiles, projectRoot } from "./challenge/files.js";
+
+const MAX_SOURCE_BYTES = 32_768;
+const MAX_OUTPUT_CHARS = 12_000;
+const MAX_READ_CHARS = 32_768;
+const lockfileUrl = new URL("./challenge/package-lock.json", import.meta.url);
+const projectPath = (path: string) => `${projectRoot}/${path}`;
+
+>>>>>>> efc913c (sandbox frontend)
 export type TestObservation = {
   exitCode: number | null;
   stdout: string;
@@ -19,6 +35,7 @@ export type TestObservation = {
   durationMs: number;
   passed: number | null;
   failed: number | null;
+<<<<<<< HEAD
   tests: TestCaseObservation[];
   suiteSha256: string;
   sourceSha256: string;
@@ -242,10 +259,48 @@ export class E2BSandboxProvider implements SandboxProvider {
       return sandbox.sandboxId;
     } catch (error) {
       await sandbox.kill().catch(() => false);
+=======
+  infrastructureFailure?: string;
+  timedOut?: boolean;
+};
+export type SandboxProvider = Pick<E2BSandboxProvider, "create" | "listFiles" | "readFile" | "writeFile" | "runVisibleTests" | "grade" | "kill">;
+
+export function hashSource(source: string) { return createHash("sha256").update(source).digest("hex"); }
+export function validateSource(source: string) {
+  if (Buffer.byteLength(source, "utf8") > MAX_SOURCE_BYTES) throw new ApiError(422, "SOURCE_TOO_LARGE", "Source is limited to 32 KiB.");
+  if (source.includes("\0")) throw new ApiError(422, "INVALID_SOURCE", "Source contains a null byte.");
+}
+
+function summarize(result: CommandResult, durationMs: number): TestObservation {
+  const count = (label: string) => {
+    const match = result.stdout.match(new RegExp(`^# ${label} (\\d+)$`, "m"));
+    return match ? Number(match[1]) : null;
+  };
+  return { exitCode: result.exitCode, stdout: result.stdout.slice(0, MAX_OUTPUT_CHARS), stderr: result.stderr.slice(0, MAX_OUTPUT_CHARS), durationMs, passed: count("pass"), failed: count("fail") };
+}
+
+export class E2BSandboxProvider {
+  constructor(private apiKey?: string) {}
+  async create(ttlSeconds: number): Promise<string> {
+    const sandbox = await Sandbox.create({ apiKey: this.apiKey, timeoutMs: ttlSeconds * 1000, allowInternetAccess: true, metadata: { application: "trajectoryos", challenge: "rate-limiter-debugging" } });
+    try {
+      await sandbox.files.makeDir(projectRoot);
+      await sandbox.files.makeDir(`${projectRoot}/src`);
+      await sandbox.files.makeDir(`${projectRoot}/tests`);
+      for (const [path, data] of Object.entries(projectFiles)) await sandbox.files.write(projectPath(path), data);
+      await sandbox.files.write(projectPath("package-lock.json"), await readFile(fileURLToPath(lockfileUrl), "utf8"));
+      const install = await sandbox.commands.run("npm ci --no-audit --no-fund", { cwd: projectRoot, timeoutMs: 45_000 });
+      if (install.exitCode !== 0) throw new Error("Sandbox dependency installation failed.");
+      await sandbox.updateNetwork({ allowInternetAccess: false });
+      return sandbox.sandboxId;
+    } catch (error) {
+      await Sandbox.kill(sandbox.sandboxId, { apiKey: this.apiKey }).catch(() => false);
+>>>>>>> efc913c (sandbox frontend)
       throw error;
     }
   }
 
+<<<<<<< HEAD
   listFiles() {
     return listedFiles.map(path => ({ path, editable: path === editablePath }));
   }
@@ -338,4 +393,81 @@ export class E2BSandboxProvider implements SandboxProvider {
     if (!this.apiKey) return false;
     return this.client.kill(sandboxId, { apiKey: this.apiKey }).catch(() => false);
   }
+=======
+  private async connect(id: string) { return Sandbox.connect(id, { apiKey: this.apiKey }); }
+
+  private async checkedFile(sandbox: Sandbox, path: string) {
+    if (!listedFiles.includes(path)) throw new ApiError(422, "FILE_NOT_ALLOWED", "File is outside the challenge allowlist.");
+    const directory = await sandbox.files.getInfo(projectRoot);
+    const parent = path.includes("/") ? await sandbox.files.getInfo(projectPath(path.split("/")[0]!)) : directory;
+    const entry = await sandbox.files.getInfo(projectPath(path));
+    if (directory.type !== FileType.DIR || parent.type !== FileType.DIR || entry.type !== FileType.FILE || entry.symlinkTarget) {
+      throw new ApiError(409, "INVALID_FILE_TYPE", "A challenge path changed type.");
+    }
+    if (entry.size > MAX_READ_CHARS) throw new ApiError(422, "FILE_TOO_LARGE", "File exceeds the read limit.");
+  }
+
+  listFiles() { return listedFiles.map(path => ({ path, editable: path === editablePath })); }
+
+  async readFile(id: string, path: string) {
+    if (!listedFiles.includes(path)) throw new ApiError(422, "FILE_NOT_ALLOWED", "File is outside the challenge allowlist.");
+    const sandbox = await this.connect(id);
+    await this.checkedFile(sandbox, path);
+    return sandbox.files.read(projectPath(path));
+  }
+
+  async writeFile(id: string, path: string, source: string) {
+    if (path !== editablePath) throw new ApiError(422, "FILE_NOT_EDITABLE", "Only src/rateLimiter.ts can be changed.");
+    validateSource(source);
+    const sandbox = await this.connect(id);
+    await this.checkedFile(sandbox, path);
+    await sandbox.files.write(projectPath(path), source);
+    return { path, sha256: hashSource(source), bytes: Buffer.byteLength(source, "utf8") };
+  }
+
+  async runVisibleTests(id: string): Promise<TestObservation> {
+    try {
+      const sandbox = await this.connect(id);
+      await this.checkedFile(sandbox, editablePath);
+      for (const [path, content] of Object.entries(projectFiles)) if (path !== editablePath) {
+        await this.checkedFile(sandbox, path);
+        await sandbox.files.write(projectPath(path), content);
+      }
+      return this.runFixed(sandbox, "npm run test:visible");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown sandbox error";
+      return { exitCode: null, stdout: "", stderr: "", durationMs: 0, passed: null, failed: null, infrastructureFailure: message.slice(0, 300), timedOut: /timeout/i.test(message) };
+    }
+  }
+
+  private async runFixed(sandbox: Sandbox, command: string): Promise<TestObservation> {
+    const start = performance.now();
+    try {
+      return summarize(await sandbox.commands.run(command, { cwd: projectRoot, timeoutMs: 12_000 }), Math.round(performance.now() - start));
+    } catch (error) {
+      if (error instanceof CommandExitError) return summarize(error, Math.round(performance.now() - start));
+      const message = error instanceof Error ? error.message : "Unknown sandbox error";
+      return { exitCode: null, stdout: "", stderr: "", durationMs: Math.round(performance.now() - start), passed: null, failed: null, infrastructureFailure: message.slice(0, 300), timedOut: /timeout/i.test(message) };
+    }
+  }
+
+  async grade(source: string, ttlSeconds: number) {
+    validateSource(source);
+    let sandboxId: string | undefined;
+    try {
+      sandboxId = await this.create(Math.min(ttlSeconds, 180));
+      const sandbox = await this.connect(sandboxId);
+      await this.writeFile(sandboxId, editablePath, source);
+      await sandbox.files.write(projectPath("tests/hidden.test.ts"), hiddenTestSource);
+      const nodeVersion = (await sandbox.commands.run("node --version", { cwd: projectRoot, timeoutMs: 5000 })).stdout.trim();
+      const observation = await this.runFixed(sandbox, "npm run test:hidden");
+      return { observation, sandboxId, sourceHash: hashSource(source), environment: { provider: "e2b", sdk: "2.56.0", runner: "tsx@4.20.0", nodeVersion,
+        packageLockSha256: hashSource(await readFile(fileURLToPath(lockfileUrl), "utf8")), network: "egress disabled after reviewed dependency install" } };
+    } finally {
+      if (sandboxId) await Sandbox.kill(sandboxId, { apiKey: this.apiKey }).catch(() => false);
+    }
+  }
+
+  async kill(id: string) { return Sandbox.kill(id, { apiKey: this.apiKey }); }
+>>>>>>> efc913c (sandbox frontend)
 }
