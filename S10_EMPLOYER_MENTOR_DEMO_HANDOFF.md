@@ -2,9 +2,11 @@
 
 Implemented on `feat/employer-mentor-demo` in the independent worktree `C:\Users\tanej\Desktop\TrajectoryOs-s10`, based on `5f4a662`. The original checkout's uncommitted S9 work was left untouched. All implementation changes are confined to `apps/web/src/demo/**` and `apps/web/test/demo-workflow.test.mjs`; this document is the only root addition. No dependency manifests, lockfiles, API contracts, backend files, migrations, global styles, production routes or navigation were changed.
 
-Implementation commit: `b1553e02a61a02b758eabf9982896b0e5740b8c6` — `feat(web): add fictional employer and mentor demo journey`.
+Implementation commit on the source branch: `b1553e02a61a02b758eabf9982896b0e5740b8c6` — `feat(web): add fictional employer and mentor demo journey`.
 
-Feature branch: [feat/employer-mentor-demo](https://github.com/rachittaneja56-max/Hackshift-IIIT-Delhi/tree/feat/employer-mentor-demo). The documentation commit follows the implementation commit; `git log -2 --oneline feat/employer-mentor-demo` identifies both. Nothing was merged to main or publicly deployed.
+Integration is complete on main. The source feature and handoff were cherry-picked as `fd9f0770e2f324c853e86de7a01768e6c830867f` and `935140e65bc3d18f8f45947cb1b54ef609b86d94`. The application route, Opportunities entry and connected workflow test were added in `4400aa21ae5c02c980ddbab622fcc046fca9788d`. See [S9_PRODUCT_EXPERIENCE_HANDOFF.md](S9_PRODUCT_EXPERIENCE_HANDOFF.md) for combined verification and remaining gates.
+
+Feature branch: [feat/employer-mentor-demo](https://github.com/rachittaneja56-max/Hackshift-IIIT-Delhi/tree/feat/employer-mentor-demo). The documentation commit follows the implementation commit; `git log -2 --oneline feat/employer-mentor-demo` identifies both source commits. At the time this handoff was first written, the feature had not been integrated or publicly deployed. No public deployment has been made.
 
 ## Product journey and files
 
@@ -95,29 +97,11 @@ References are stored separately from the posting. Only selected materials parti
 
 Failures remain failures in the mapping. Every test reference carries the reviewed-implementation/authorship limitation. Written/design material needs human review; its correctness and clarity are not inferred. There is no LLM call, AI hiring decision, employability score, credential or certificate.
 
-## Minimal S9 integration
+## S9 integration (complete)
 
-Apply this feature branch's two commits through the agreed integration process when S9 is ready. Do not replace the app shell or global router.
+The application now serves the demo at `/demo/journey` inside the existing authenticated app shell. Opportunities contains a separate fictional-walkthrough link that states the demo uses no real attempts, evidence or career APIs. The primary navigation highlights Opportunities on this route. Existing `/career/preview`, `/opportunities`, attempt and evidence URLs remain available.
 
-In `apps/web/src/app/App.tsx`, beside the existing page imports:
-
-```tsx
-import { EmployerMentorDemo } from '../demo/EmployerMentorDemo';
-```
-
-Inside `AppRoutes`, before the unavailable-page fallback:
-
-```tsx
-if (path === '/demo/journey') return <EmployerMentorDemo />;
-```
-
-Add one link under Opportunities or the agreed demo section, using the existing router:
-
-```tsx
-<Link href="/demo/journey">Explore company &amp; mentorship demo</Link>
-```
-
-S9 chooses final placement. `EmployerMentorDemo` imports its own scoped CSS and renders its own `main`, without a duplicate global header or routing provider. No props are required. With the current `AppRoutes` placement, the existing Clerk authenticated wrapper still guards the route. The module does not consume Clerk identity, real attempts, API context or tokens; every signed-in user sees only fictional fixtures. A public demo route would be a separate S9 placement decision, not an auth bypass added here. No API contract amendment is proposed.
+`EmployerMentorDemo` keeps its scoped stylesheet and local state model. It does not consume Clerk identity, real attempts, API context or tokens. The route remains within the existing signed-in `AppRoutes` boundary; no public auth bypass was added. No API contract amendment or database migration was needed.
 
 ### Standalone development harness
 
@@ -129,7 +113,7 @@ npm run dev --workspace=@trajectoryos/web -- --port 5180 --strictPort
 
 Open `http://127.0.0.1:5180/src/demo/harness.html`. No `.env`, Clerk or API server is required. The harness does not register `/demo/journey` in the production app. Its `/lab` link enters the real app, which may require the usual configuration and sign-in.
 
-The demo was also independently bundled, because the unchanged production router does not yet import it:
+The source branch also independently bundled the development harness. The integrated production application now imports the demo through its route and is covered by the root production build:
 
 ```powershell
 node --input-type=module -e "import { build } from 'vite'; await build({root:'apps/web',build:{outDir:'src/demo/dist',emptyOutDir:true,rollupOptions:{input:'apps/web/src/demo/harness.html'}}});"
@@ -141,9 +125,10 @@ The generated `dist` is ignored and not committed. For local verification only, 
 
 Observed on 18 October 2026:
 
-- `npm test --workspace=@trajectoryos/web`: **47 passed, 0 failed**. Includes 12 new S10 cases plus all 35 pre-existing web tests.
-- `npm run typecheck --workspace=@trajectoryos/web`: **passed**.
-- `npm run build --workspace=@trajectoryos/web`: **passed**; existing application emits a chunk-size advisory for bundles above 500 kB.
+- `npm test`: **88 passed, 0 failed** (32 API and 56 web tests), including the connected candidate-to-mentor workflow and the production route/Opportunities entry.
+- `npm run typecheck`: **passed** for contracts, API and web.
+- `npm run build`: **passed**; Vite reports existing chunks above 500 kB.
+- `npm run smoke`: **passed** for API health/readiness, v0.6 schemas and packaged challenge/migration runtime assets.
 - Independent demo harness Vite build: **passed**, 113 modules transformed; demo JS approximately 340.49 kB / 102.65 kB gzip.
 - `git diff --check` and staged whitespace check: **passed**.
 - Development harness server starts on loopback port 5180. Delivery is checked separately from rendering.
@@ -160,6 +145,6 @@ The available browser inventory returned no browsers or native app surfaces. **N
 4. **1:40–2:25:** Switch to Candidate → Mentor review. Choose LLD, reasoning and failed concurrency context. Preview exact selected materials, consent and request the example. Switch to Mentor to show the same packet and the clearly labelled seeded response. Point to the concrete next check and real `/lab` handoff without claiming any diagram edit.
 5. **2:25–2:45:** Refresh to inspect saved state when a browser is available, then Reset demo and confirm the initial draft/no-Ananya-application/no-shortlist/no-review state. Explain that only the two seeded comparator packets return.
 
-Implementation, unit/SSR tests, typecheck and builds are complete. Production route/nav integration remains intentionally assigned to S9, and browser QA remains unverified.
+Implementation and production route/navigation integration are complete on main. The deterministic workflow tests, typecheck and production build pass. Browser QA, live service verification and the remaining release gates are summarized in `S9_PRODUCT_EXPERIENCE_HANDOFF.md`.
 
 IMPLEMENTED
