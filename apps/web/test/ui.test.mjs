@@ -121,6 +121,7 @@ test('S10: Opportunities links to a distinct fictional demo and the route keeps 
   assert.match(entry, /no real attempts, evidence or career APIs/);
   assert.match(entry, /href="\/demo\/journey"/);
   assert.match(route, /Fictional demo/);
-  assert.match(route, /Not externally sent/);
+  assert.match(route, /All activity stays in this browser/);
+  assert.match(route, /no external applications or messages/);
   assert.match(header, /<a(?=[^>]*href="\/opportunities")(?=[^>]*aria-current="page")[^>]*>Opportunities/);
 });

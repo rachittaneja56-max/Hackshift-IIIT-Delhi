@@ -44,21 +44,28 @@ test('S10 fixtures: exactly three fictional people; A has mixed checks, B passes
   assert.match(posting, /Northstar Engineering/);
   assert.doesNotMatch(posting, /T[1-7]/);
 });
-test('S10 publication gates applications and changes the local board state', () => {
-  const state = initialDemoState();
-  assert.equal(state.job, 'draft');
-  assert.throws(() => transition(state, { type: 'prepare_application', selected: ['a-hld'] }), /Publish/);
-  assert.equal(transition(state, { type: 'publish' }).job, 'published_demo');
-  const published = render(ui.CandidateApplicationView, { state: transition(state, { type: 'publish' }), send() {}, switchPersona() {} });
+test('S11 published startup is usable; optional draft replay retains publication guard', () => {
+  const initial = initialDemoState();
+  assert.equal(initial.job, 'published_demo');
+  assert.equal(initial.version, 2);
+  assert.deepEqual(initial.applications.ananya.selected, []);
+  assert.equal(initial.applications.ananya.consent, false);
+  const published = render(ui.CandidateApplicationView, { state: initial, send() {}, switchPersona() {} });
   assert.match(published, /Published to demo board/);
   assert.match(published, /Junior Backend Engineer/);
-  assert.match(published, /Open job &amp; requirements/);
-  assert.equal(state.job, 'draft', 'Transition must not mutate input');
+  assert.match(published, /View opportunity/);
+  assert.doesNotMatch(published, /type="checkbox"/);
+  const draft = transition(initial, { type: 'replay_publication' });
+  assert.equal(draft.job, 'draft');
+  assert.throws(() => transition(draft, { type: 'prepare_application', selected: ['a-hld'] }), /Publish/);
+  assert.equal(transition(draft, { type: 'publish' }).job, 'published_demo');
+  assert.equal(initial.job, 'published_demo', 'Input stays unchanged');
   const html = render(ui.EmployerMentorDemo);
-  assert.match(html, /Open employer workspace/);
-  assert.match(html, /Fictional demo/);
-  assert.match(html, /Not externally sent/);
+  assert.match(html, /Career Journey/);
+  assert.match(html, /Follow the journey/);
+  assert.match(html, /Fictional company, candidates and mentor/);
 });
+
 test('S10 preparation includes only selected evidence and resets consent on any re-preparation', () => {
   let state = prepared(['a-lld']);
   assert.deepEqual(state.applications.ananya.selected, ['a-lld']);
@@ -75,7 +82,7 @@ test('S10 submission requires consent and a published prepared package; submitte
   const state = submitted(['a-hld']);
   assert.equal(state.applications.ananya.submittedAt, at);
   assert.equal(state.applications.ananya.status, 'submitted_demo');
-  assert.match(render(ui.CandidateApplicationView, { state, send() {}, switchPersona() {} }), /Demo application recorded locally/);
+  assert.match(render(ui.CandidateApplicationView, { state, send() {}, switchPersona() {} }), /Application added to the fictional employer inbox/);
   assert.throws(() => transition(state, { type: 'prepare_application', selected: ['a-profile'] }), /frozen/);
   assert.throws(() => transition(state, { type: 'submit_application', at }), /consent/);
 });
@@ -181,17 +188,17 @@ test('S10 end-to-end application, employer evidence review, human shortlist and 
   assert.match(response.label, /fictional demonstration, not a real message/);
   const mentorReview = render(ui.MentorPacketView, { state });
   assert.match(mentorReview, /Example mentor response/);
-  assert.match(mentorReview, /Revisit the transaction boundary in LLD/);
+  assert.match(mentorReview, /Revisit transaction boundaries in your LLD/);
   assert.equal(employerApplication(state, 'kabir').meta.isMock, true);
 });
 
 test('S10 versioned browser persistence validates structure, references, consent and semantic state', () => {
   const state = submitted(['a-tests']);
   let raw;
-  const storage = { getItem: key => { assert.equal(key, STORAGE_KEY); return raw ?? null; }, setItem: (key, value) => { assert.equal(key, STORAGE_KEY); raw = value; } };
+  const storage = { getItem: key => { return key === STORAGE_KEY ? raw ?? null : null; }, setItem: (key, value) => { assert.equal(key, STORAGE_KEY); raw = value; } };
   assert.equal(saveDemoState(storage, state), true);
   assert.deepEqual(loadDemoState(storage).state, state);
-  const malformed = [null, {}, { ...state, version: 2 }, { ...state, job: 'real' }, { ...state, secret: 'untrusted' }, { ...state, meta: { isMock: false } }, { ...state, applications: { ...state.applications, ananya: { ...state.applications.ananya, selected: ['b-tests'] } } }, { ...state, applications: { ...state.applications, ananya: { ...state.applications.ananya, consent: false } } }];
+  const malformed = [null, {}, { ...state, version: 99 }, { ...state, job: 'real' }, { ...state, secret: 'untrusted' }, { ...state, meta: { isMock: false } }, { ...state, applications: { ...state.applications, ananya: { ...state.applications.ananya, selected: ['b-tests'] } } }, { ...state, applications: { ...state.applications, ananya: { ...state.applications.ananya, consent: false } } }];
   for (const value of malformed) {
     raw = JSON.stringify(value);
     assert.deepEqual(loadDemoState(storage).state, initialDemoState());
@@ -211,4 +218,49 @@ test('S10 React escapes untrusted local questions and fixture output stays label
   assert.match(html, /&lt;script&gt;/);
   assert.doesNotMatch(html, /<script>steal/);
   assert.match(html, /meta.isMock: true/);
+});
+
+test('S11 v1 storage resets visibly and never carries forward consent or decisions', () => {
+  const legacy = { ...submitted(), version: 1 };
+  const loaded = loadDemoState({ getItem: key => key === model.LEGACY_STORAGE_KEY ? JSON.stringify(legacy) : null });
+  assert.deepEqual(loaded.state, initialDemoState());
+  assert.match(loaded.notice, /older demo was reset/);
+  const underNewKey = loadDemoState({ getItem: key => key === STORAGE_KEY ? JSON.stringify(legacy) : null });
+  assert.deepEqual(underNewKey.state, initialDemoState());
+  assert.match(underNewKey.notice, /invalid/);
+});
+
+test('S11 draft replay clears prior submissions and review actions; normal reset restores published scenario', () => {
+  let state = transition(submitted(), { type: 'shortlist', candidateId: 'ananya', confirmed: true, note: '', at });
+  state = transition(state, { type: 'prepare_mentor', selected: ['a-hld'], question: 'Review the boundary?' });
+  state = transition(state, { type: 'mentor_consent', consent: true });
+  state = transition(state, { type: 'request_mentor', at });
+  const draft = transition(state, { type: 'replay_publication' });
+  assert.equal(draft.job, 'draft');
+  assert.equal(draft.applications.ananya.status, 'not_started');
+  assert.equal(draft.applications.ananya.consent, false);
+  assert.equal(draft.mentor.status, 'not_requested');
+  assert.deepEqual(draft.decisions, []);
+  assert.deepEqual(transition(draft, { type: 'reset' }), initialDemoState());
+});
+
+test('S11 mentorship works before any application or shortlist, and changed packets renew consent', () => {
+  const state = requested(['a-hld']);
+  assert.equal(state.applications.ananya.status, 'not_started');
+  assert.equal(state.decisions.length, 0);
+  const revised = transition(state, { type: 'prepare_mentor', selected: ['a-lld'], question: 'A different question?' });
+  assert.equal(revised.mentor.consent, false);
+  assert.equal(exampleResponse(revised), null);
+  assert.throws(() => transition(revised, { type: 'request_mentor', at }), /consent/);
+  assert.deepEqual(mentorPacket(revised).artifacts.map(item => item.id), ['a-lld']);
+});
+
+test('S11 comparison preserves failures, selected-only artifact links and no aggregate score', () => {
+  const mapping = requirementMapping(employerApplication(submitted(['a-tests']), 'ananya').artifacts);
+  const concurrency = mapping.find(row => row.id === 'concurrency');
+  assert.equal(concurrency.support.find(item => item.id.endsWith(':T3')).outcome, 'failed');
+  assert.ok(mapping.flatMap(row => row.support).every(item => item.artifactId === 'a-tests'));
+  const html = render(ui.EmployerProfile, { state: submitted(['a-tests']), id: 'ananya' });
+  assert.match(html, /T3 · failed/);
+  assert.doesNotMatch(html, /\d+%|match score|skill score|a-hld|a-lld|a-profile/);
 });
