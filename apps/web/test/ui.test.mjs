@@ -10,7 +10,7 @@ test('F2: rendered comparison and selected repair remain independent; canonical 
   const artifact = { hld: null, lld: null, decisions: { keyScope: null, atomicity: null, payloadConflict: null }, variantId: 'atomic', aiCritique: null, repairJustification: null };
   const challenge = { variants: ['credit-first', 'key-only', 'atomic'].map(id => ({ id, label: id, files: [{ path: `${id}.ts`, source: `// ${id}\nconst html = '<script>unsafe()</script>';` }] })), testDescriptions: [{ id: 'T5', description: 'Failure after a write rolls back all effects.' }], faultyAiSuggestion: { source: 'curated_fixture', title: 'Curated recommendation', text: 'A unique key alone prevents every duplicate effect.' } };
   const html = renderToStaticMarkup(createElement(Investigation, { attemptId: 'attempt-one', artifact, challenge, disabled: false, change: () => {} }));
-  assert.match(html, /credit-first\.ts/); assert.match(html, /key-only\.ts/); assert.match(html, /name="repair" checked="" value="atomic"/); assert.doesNotMatch(html, /<script>unsafe/); assert.match(html, /&lt;script&gt;/); assert.match(html, /curated_fixture/); assert.match(html, /source-line-number/); assert.match(html, /Initial hypothesis &amp; investigation notes/); assert.doesNotMatch(html, /All passed|Correct variant/);
+  assert.match(html, /credit-first\.ts/); assert.match(html, /key-only\.ts/); assert.match(html, /name="repair" checked="" value="atomic"/); assert.doesNotMatch(html, /<script>unsafe/); assert.match(html, /&lt;script&gt;/); assert.match(html, /curated_fixture/); assert.match(html, /source-line-number/); assert.match(html, /Search source files/); assert.match(html, /Reviewed source files/); assert.match(html, /Line-level note/); assert.match(html, /Initial hypothesis &amp; investigation notes/); assert.doesNotMatch(html, /All passed|Correct variant/);
 });
 test('F3: returned mixed outcomes and limitations render without changing the verdict', async () => {
   const { Results } = await server.ssrLoadModule('/src/evidence/details.tsx');
@@ -38,8 +38,8 @@ test('History records make drafts, completed runs and execution errors distinct'
   const make = (id, status) => ({ id, challenge: { slug: 'retry-safe-credit', version: 1 }, status, createdAt: '2026-10-18T00:00:00.000Z', submittedAt: status === 'draft' ? null : '2026-10-18T00:30:00.000Z', evidenceId: status === 'evaluated' ? id : null });
   const html = renderToStaticMarkup(createElement(HistoryRecords, { items: [make('draft-id', 'draft'), make('complete-id', 'evaluated'), make('error-id', 'execution_error'), make('queued-id', 'queued')], filter: 'all', onFilter: () => {} }));
   assert.match(html, /Resume draft/);
-  assert.match(html, /View evidence/);
-  assert.match(html, /Execution error/);
+  assert.match(html, /View results/);
+  assert.match(html, /Needs attention/);
   assert.match(html, /no test verdict/);
   assert.match(html, /aria-label="Filter attempts"/);
   assert.equal((html.match(/Resume draft/g) ?? []).length, 1);
@@ -54,7 +54,9 @@ test('S8: HLD and LLD review findings show statuses and exact saved diagram cita
   assert.match(html, /HLD analysis/);
   assert.match(html, /System boundaries/);
   assert.match(html, /Explicitly shown/);
-  assert.match(html, /Element api-box/);
+  assert.match(html, /View saved HLD drawing/);
+  assert.match(html, /Exact element reference/);
+  assert.match(html, /api-box/);
   assert.match(html, /Where does a retry re-enter/);
 });
 test('S8: history rows retain a single draft action and career checks explain canonical IDs', async () => {
@@ -81,8 +83,28 @@ test('Mentor preview formats the selected packet and labels it as unsent', async
 test('Career review stepper points to the next incomplete step', async () => {
   const { CareerSteps } = await server.ssrLoadModule('/src/previews/career.tsx');
   const html = renderToStaticMarkup(createElement(CareerSteps, { stage: 'review', complete: ['job', 'evidence'] }));
-  assert.match(html, /Add a job description/);
-  assert.match(html, /Choose evidence/);
-  assert.match(html, /Review requirements/);
+  assert.match(html, />Role</);
+  assert.match(html, />Evidence</);
+  assert.match(html, />Analysis</);
   assert.match(html, /aria-current="step"/);
+});
+
+test('S9: primary header exposes learner destinations and selects the AI lab under Practice', async () => {
+  const { Header } = await server.ssrLoadModule('/src/app/App.tsx');
+  const { RouteContext } = await server.ssrLoadModule('/src/app/router.tsx');
+  const location = { path: '/lab/ai-debugging', search: '', navigate: () => {} };
+  const html = renderToStaticMarkup(createElement(RouteContext.Provider, { value: location }, createElement(Header, { account: false })));
+  assert.match(html, /aria-label="Main navigation"/);
+  assert.match(html, /<a(?=[^>]*href="\/practice")(?=[^>]*aria-current="page")[^>]*>Practice/);
+  assert.match(html, /href="\/evidence">My Work/);
+  assert.match(html, /href="\/opportunities">Opportunities/);
+  assert.doesNotMatch(html, /Product previews|Preview<\/small>/);
+});
+
+test('S9: career empty state points to a real practice route without implying draft evidence', async () => {
+  const { CareerEmptyEvidence } = await server.ssrLoadModule('/src/previews/career.tsx');
+  const html = renderToStaticMarkup(createElement(CareerEmptyEvidence));
+  assert.match(html, /Complete one engineering lab to create test-backed evidence/);
+  assert.match(html, /Draft drawings and evaluation errors do not contain completed test observations/);
+  assert.match(html, /href="\/practice"/);
 });

@@ -6,14 +6,15 @@ import { SceneView } from '../drawing/Scene';
 import { variantLabel } from '../attempts/workspace';
 import { FeedbackPanel } from './feedback';
 import { DesignReviewPanel } from './design-review';
-import { observationSummary, testLabel } from '../lib/presentation';
+import { decisionLabel, observationSummary, testLabel } from '../lib/presentation';
 
 export function ArtifactSnapshot({ artifact, identity }: { artifact: Artifact; identity: string }) {
   const [scene, setScene] = useState<'hld' | 'lld' | null>(null);
   return <section className="artifact-snapshot" aria-labelledby="submitted-artifact-heading">
     <span className="eyebrow">Submitted artifact · human review</span><h2 id="submitted-artifact-heading">What you submitted.</h2>
     <p className="muted">The selected implementation is reviewed challenge source. Its passing tests do not establish that you authored or implemented it.</p>
-    <dl><dt>Selected implementation</dt><dd>{variantLabel(artifact.variantId)} <code>{artifact.variantId ?? 'Not selected'}</code></dd><dt>Idempotency key scope</dt><dd>{artifact.decisions.keyScope ?? 'Not selected'}</dd><dt>Database write boundary</dt><dd>{artifact.decisions.atomicity ?? 'Not selected'}</dd><dt>Changed-payload behavior</dt><dd>{artifact.decisions.payloadConflict ?? 'Not selected'}</dd></dl>
+    <dl><dt>Selected implementation</dt><dd>{variantLabel(artifact.variantId)}</dd><dt>Idempotency key scope</dt><dd>{decisionLabel('keyScope', artifact.decisions.keyScope)}</dd><dt>Database write boundary</dt><dd>{decisionLabel('atomicity', artifact.decisions.atomicity)}</dd><dt>Changed-payload behavior</dt><dd>{decisionLabel('payloadConflict', artifact.decisions.payloadConflict)}</dd></dl>
+    <details><summary>Advanced: implementation identifier</summary><code>{artifact.variantId ?? 'Not selected'}</code></details>
     <div className="submitted-scenes"><h3>Saved design scenes</h3><div className="actions">{(['hld', 'lld'] as const).map(name => <button key={name} aria-pressed={scene === name} onClick={() => setScene(scene === name ? null : name)} disabled={!artifact[name]}>View saved {name.toUpperCase()} {artifact[name] ? '→' : '(missing)'}</button>)}</div><p className="small muted">Drawing contents are shown as submitted. They were not automatically graded.</p></div>
     {scene && <div className="snapshot-viewer"><SceneView sceneKey={`${identity}:${scene}`} scene={artifact[scene]} name={`Saved ${scene.toUpperCase()}`} readOnly /></div>}
     <div className="reasoning-grid"><section><h3>AI suggestion critique</h3><Badge>Self-reported · human review</Badge><p className="preserve-whitespace">{artifact.aiCritique || 'No critique saved.'}</p></section><section><h3>Repair justification</h3><Badge>Self-reported · human review</Badge><p className="preserve-whitespace">{artifact.repairJustification || 'No justification saved.'}</p></section></div>
@@ -64,7 +65,7 @@ export function EvidenceDetails({ evidence }: { evidence: Evidence }) {
   return <>
     <section className="evidence-summary" aria-labelledby="evidence-summary-heading">
       <div><span className="eyebrow">Evidence summary</span><h2 id="evidence-summary-heading">What this run records.</h2></div>
-      <dl><div><dt>Challenge</dt><dd>{evidence.provenance.challenge.slug} · version {evidence.provenance.challenge.version}</dd></div><div><dt>Implementation selected</dt><dd>{variantLabel(evidence.artifact.variantId)} · {evidence.artifact.variantId ?? 'not selected'}</dd></div><div><dt>Evaluation finished</dt><dd>{new Date(evidence.provenance.finishedAt).toLocaleString()}</dd></div><div><dt>Checks</dt><dd>{passed} passed · {failed} failed</dd></div><div><dt>Execution source</dt><dd>{evidence.provenance.isSynthetic ? 'Seeded fixture data' : 'Real PostgreSQL execution'}</dd></div></dl>
+      <dl><div><dt>Challenge</dt><dd>Retry-safe account credits</dd></div><div><dt>Implementation selected</dt><dd>{variantLabel(evidence.artifact.variantId)}</dd></div><div><dt>Evaluation finished</dt><dd>{new Date(evidence.provenance.finishedAt).toLocaleDateString()}</dd></div><div><dt>Checks</dt><dd>{passed} passed · {failed} failed</dd></div><div><dt>Execution source</dt><dd>{evidence.provenance.isSynthetic ? 'Test credits (no real money)' : 'PostgreSQL execution'}</dd></div></dl>
       <p>These checks record specific database behavior in this run. They do not prove every production failure mode, the quality of your diagrams, or who authored the reviewed implementation.</p>
       <a className="text-action" href="#saved-designs">View saved diagrams and design feedback ↓</a>
     </section>

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { SandboxAvailabilityDtoSchema } from '@trajectoryos/contracts';
 import { sandboxApi, sessionSchema, reportSchema } from '../src/code-lab/api.ts';
 
 const id = '5d22a39d-99d2-4afa-969f-e15d6bb302c8';
@@ -28,4 +29,14 @@ test('sandbox adapter sends stable request IDs to exact session routes', async (
     { path: `/sandbox/sessions/${id}/visible-tests`, method: 'POST', body: { clientRequestId: id } },
     { path: `/sandbox/sessions/${id}/submit`, method: 'POST', body: { clientRequestId: id } },
   ]);
+});
+
+test('sandbox availability uses the documented authenticated route and strict DTO', async () => {
+  const calls = [];
+  const availability = { available: false, challengeSlug: 'rate-limiter-debugging', challengeVersion: 2 };
+  const lab = sandboxApi({ request: async (...args) => { calls.push(args); return availability; } });
+  assert.equal((await lab.availability()).available, false);
+  assert.equal(calls[0][0], '/sandbox/availability');
+  assert.equal(SandboxAvailabilityDtoSchema.safeParse(availability).success, true);
+  assert.equal(SandboxAvailabilityDtoSchema.safeParse({ ...availability, challengeVersion: 1 }).success, false);
 });

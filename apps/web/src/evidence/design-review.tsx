@@ -23,18 +23,18 @@ const statusTone: Record<DesignFindingStatus, string> = {
 
 export function ReviewFindings({ title, section }: { title: string; section: DesignSection }) {
   return <section className="design-findings" aria-label={`${title} findings`}>
-    <h3>{title} analysis</h3>
+    <div className="section-heading"><h3>{title} analysis</h3><a href={`#saved-design-${title.toLowerCase()}`}>View saved {title} drawing</a></div>
     <div className="design-finding-list">{section.findings.map((finding: DesignFinding) => <article className="design-finding" key={finding.criterion}>
       <div className="section-heading"><h4>{criterionLabels[finding.criterion]}</h4><Badge tone={statusTone[finding.status]}>{statusLabels[finding.status]}</Badge></div>
       <p>{finding.explanation}</p>
       {(finding.evidenceElements.length > 0 || finding.connectionIds.length > 0) && <div className="design-citations" aria-label="Diagram evidence references">
-        {finding.evidenceElements.map((reference, index) => <span className="design-citation" key={`${reference.elementId}-${index}`}><code>Element {reference.elementId}</code>{reference.excerpt !== null && <q>{reference.excerpt}</q>}</span>)}
-        {finding.connectionIds.map(id => <span className="design-citation" key={id}><code>Connection {id}</code></span>)}
+        {finding.evidenceElements.map((reference, index) => <div className="design-citation" key={`${reference.elementId}-${index}`}><span>Saved drawing element</span>{reference.excerpt !== null && <q>{reference.excerpt}</q>}<details><summary>Exact element reference</summary><code>{reference.elementId}</code></details></div>)}
+        {finding.connectionIds.map(id => <div className="design-citation" key={id}><span>Saved connection</span><details><summary>Exact connection reference</summary><code>{id}</code></details></div>)}
       </div>}
       {finding.nextStep && <p className="design-next-step"><strong>Consider:</strong> {finding.nextStep}</p>}
     </article>)}</div>
     {section.observedElements.length > 0 && <details className="design-observations"><summary>Observed diagram labels and connections</summary><ul>{section.observedElements.map((observation, index) => <li key={`${observation.text}-${index}`}>
-      <span>{observation.text}</span><span className="design-citations">{observation.evidenceElements.map((reference, refIndex) => <code key={`${reference.elementId}-${refIndex}`}>Element {reference.elementId}{reference.excerpt !== null ? ` · “${reference.excerpt}”` : ''}</code>)}{observation.connectionIds.map(id => <code key={id}>Connection {id}</code>)}</span>
+      <span>{observation.text}</span><div className="design-citations">{observation.evidenceElements.map((reference, refIndex) => <details key={`${reference.elementId}-${refIndex}`}><summary>{reference.excerpt ? `Drawing text: ${reference.excerpt}` : 'Drawing element'}</summary><code>Exact element reference: {reference.elementId}</code></details>)}{observation.connectionIds.map(id => <details key={id}><summary>Drawing connection</summary><code>Exact connection reference: {id}</code></details>)}</div>
     </li>)}</ul></details>}
     {section.questions.length > 0 && <div className="design-questions"><h4>Questions to take back to your design</h4><ul>{section.questions.map(question => <li key={question}>{question}</li>)}</ul></div>}
     {section.limitations.length > 0 && <ul className="design-limitations">{section.limitations.map(item => <li key={item}>{item}</li>)}</ul>}
@@ -59,7 +59,7 @@ export function DesignReviewPanel({ evidenceId, artifact }: { evidenceId: string
     <div className="section-heading"><div><span className="eyebrow">Saved diagram review</span><h2 id="design-review-heading">Review the HLD and LLD.</h2></div>{result && <Badge tone={result.status === 'ready' ? 'pass' : result.status === 'limited' ? 'warning' : ''}>{result.status.replace('_', ' ')}</Badge>}</div>
     <p className="muted">This advisory reads saved Excalidraw element types, text labels, bounds and resolvable connections. It does not inspect pixels, grade your diagrams, or change the PostgreSQL T1–T7 verdict.</p>
     <div className="saved-design-grid">
-      {(['hld', 'lld'] as const).map(name => <section className="saved-design-card" key={name} aria-label={`Saved ${name.toUpperCase()} diagram`}>
+      {(['hld', 'lld'] as const).map(name => <section className="saved-design-card" id={`saved-design-${name}`} key={name} aria-label={`Saved ${name.toUpperCase()} diagram`}>
         <h3>{name.toUpperCase()} · {name === 'hld' ? 'High level' : 'Low level'}</h3>
         {artifact[name] ? <div className="saved-design-canvas"><SceneView sceneKey={`${evidenceId}:review:${name}`} scene={artifact[name]} name={`Saved ${name.toUpperCase()} design`} readOnly /></div> : <p className="empty-scene">No {name.toUpperCase()} scene was included in this evidence.</p>}
       </section>)}

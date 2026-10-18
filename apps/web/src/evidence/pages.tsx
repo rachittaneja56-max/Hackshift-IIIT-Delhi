@@ -10,16 +10,16 @@ export type HistoryFilter = 'in_progress' | 'completed' | 'execution_error' | 'a
 const filters: { id: HistoryFilter; label: string }[] = [
   { id: 'in_progress', label: 'In progress' },
   { id: 'completed', label: 'Completed' },
-  { id: 'execution_error', label: 'Execution error' },
+  { id: 'execution_error', label: 'Needs attention' },
   { id: 'all', label: 'All attempts' },
 ];
 
 function historyLabel(status: AttemptSummary['status']) {
-  if (status === 'draft') return { title: 'Draft', detail: 'Not submitted', action: 'Resume draft', tone: 'warning', href: 'lab' };
-  if (status === 'queued') return { title: 'Queued', detail: 'Waiting for evaluation', action: 'View evaluation', tone: '', href: 'evidence' };
+  if (status === 'draft') return { title: 'In progress', detail: 'Draft · not submitted', action: 'Resume draft', tone: 'warning', href: 'lab' };
+  if (status === 'queued') return { title: 'Waiting', detail: 'Evaluation has not started yet', action: 'View evaluation', tone: '', href: 'evidence' };
   if (status === 'running') return { title: 'Evaluating', detail: 'PostgreSQL checks are running', action: 'View evaluation', tone: '', href: 'evidence' };
-  if (status === 'execution_error') return { title: 'Execution error', detail: 'Infrastructure stopped the run · no test verdict', action: 'View run status', tone: 'fail', href: 'evidence' };
-  return { title: 'Completed', detail: 'Evaluation finished · review actual test outcomes', action: 'View evidence', tone: 'pass', href: 'evidence' };
+  if (status === 'execution_error') return { title: 'Needs attention', detail: 'The evaluation stopped · no test verdict', action: 'View run status', tone: 'fail', href: 'evidence' };
+  return { title: 'Results ready', detail: 'Evaluation finished · inspect the observed checks', action: 'View results', tone: 'pass', href: 'evidence' };
 }
 
 function inFilter(item: AttemptSummary, filter: HistoryFilter) {
@@ -42,12 +42,12 @@ export function HistoryRecords({ items, filter, onFilter }: { items: AttemptSumm
       {visible.length ? visible.map(item => {
         const state = historyLabel(item.status);
         return <article className={`history-row history-${item.status}`} key={item.id}>
-          <div className="history-date"><small><time dateTime={item.createdAt}>Created {date(item.createdAt)}</time></small><code>{shortId(item.id)}</code></div>
-          <div className="history-summary"><h2>Retry-safe account credits</h2><p>Challenge v{item.challenge.version}{item.submittedAt ? ` · submitted ${date(item.submittedAt)}` : ' · no submission yet'}</p><small>{state.detail}</small></div>
+          <div className="history-date"><small><time dateTime={item.createdAt}>Created {new Date(item.createdAt).toLocaleDateString()}</time></small><details className="history-record-details"><summary>Record details</summary><code>Attempt {shortId(item.id)}</code><span>Challenge version {item.challenge.version} · status {item.status}</span></details></div>
+          <div className="history-summary"><h2>{state.title}</h2><p>{state.detail}</p>{item.submittedAt && <small>Submitted {new Date(item.submittedAt).toLocaleDateString()}</small>}</div>
           <Badge tone={state.tone}>{state.title}</Badge>
           <Link className={`button ${item.status === 'draft' ? 'primary' : ''}`} href={`/${state.href}/attempts/${item.id}`}>{state.action} <span aria-hidden="true">→</span></Link>
         </article>;
-      }) : <div className="history-filter-empty"><h3>{filter === 'in_progress' ? 'No work in progress.' : filter === 'completed' ? 'No completed evaluations yet.' : filter === 'execution_error' ? 'No execution errors.' : 'No attempts in this page.'}</h3><p>{filter === 'in_progress' ? 'Start the lab when you are ready to save a design.' : 'Your other history remains available in the All attempts filter.'}</p></div>}
+      }) : <div className="history-filter-empty"><h3>{filter === 'in_progress' ? 'No work in progress.' : filter === 'completed' ? 'No completed evaluations yet.' : filter === 'execution_error' ? 'No runs need attention.' : 'No attempts in this page.'}</h3><p>{filter === 'in_progress' ? 'Start the lab when you are ready to save a design.' : 'Your other history remains available in the All attempts filter.'}</p></div>}
     </div>
   </section>;
 }
@@ -70,7 +70,7 @@ export function HistoryPage() {
   };
   const items = [...(first.data?.items ?? []), ...extra].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index);
   return <main id="main-content" tabIndex={-1} className="page history-page">
-    <PageTitle eyebrow="My Evidence / Engineering history" title="Your work, drafts and observed results."><p className="lead">Each attempt stays separate. Resume a draft, follow an evaluation, or inspect the checks that finished.</p></PageTitle>
+    <PageTitle eyebrow="My Work / Engineering history" title="Drafts, evaluations and saved results."><p className="lead">Pick up a draft, follow a pending evaluation, or review the checks that finished.</p></PageTitle>
     <ErrorNotice error={first.error ?? error} retry={first.error ? first.reload : undefined} />
     {first.loading ? <Loading label="Loading your owned attempts…" /> : items.length ? <>
       <div className="history-heading"><div><span className="eyebrow">Recent attempts</span><p className="small muted">Drafts are listed first. Evaluation errors have no test verdict.</p></div>
@@ -78,16 +78,16 @@ export function HistoryPage() {
       </div>
       <HistoryRecords items={items} filter={filter} onFilter={setFilter} />
       {next && <button className="load-more" disabled={busy} onClick={() => void more()}>{busy ? 'Loading more…' : 'Load older attempts'}</button>}
-    </> : !first.error && <Empty title="No attempts have been saved yet."><p>Read the available lesson, then start the retry-safe credits lab. Your draft will appear here as soon as it is created.</p><div className="actions"><Link className="button" href="/learn/retry-safe-writes/1">Read the lesson</Link><Link className="button primary" href="/lab">Open the engineering lab</Link></div></Empty>}
+    </> : !first.error && <Empty title="No work has been saved yet."><p>Read the available lesson, then choose a practice challenge. Your work will appear here as soon as it is saved.</p><div className="actions"><Link className="button" href="/learn/retry-safe-writes/1">Read the lesson</Link><Link className="button primary" href="/practice">Open practice</Link></div></Empty>}
   </main>;
 }
 
 export function EvidencePage({ id }: { id: string }) {
   const { api, userId } = useApi();
   const attempt = useResource(() => api.attempt(id), `${userId}:${id}:evidence-attempt`);
-  return <main id="main-content" tabIndex={-1} className="page evidence-page"><Link className="back-link" href="/evidence">← Engineering history</Link>{attempt.loading ? <Loading label="Loading your attempt…" /> : attempt.error ? <ErrorNotice error={attempt.error} retry={attempt.reload} /> : attempt.data && <>
-    <PageTitle eyebrow={`Owned attempt ${shortId(id)} · challenge v${attempt.data.challenge.version}`} title="What this run observed."><p className="muted">Created {date(attempt.data.createdAt)} · revision {attempt.data.revision} · status {attempt.data.status}{attempt.data.submittedAt && ` · submitted ${date(attempt.data.submittedAt)}`}</p></PageTitle>
-    <div className="context-actions"><Link className="button" href={`/lab/attempts/${id}`}>{attempt.data.status === 'draft' ? 'Resume draft' : 'View frozen workspace'} <span aria-hidden="true">→</span></Link><Link className="button" href={`/mentors/preview?attempt=${id}`}>Prepare mentor context <Badge>Preview</Badge></Link><Link className="button" href={`/career/preview?attempt=${id}`}>Review career evidence <Badge>Preview</Badge></Link></div>
+  return <main id="main-content" tabIndex={-1} className="page evidence-page"><Link className="back-link" href="/evidence">← My Work</Link>{attempt.loading ? <Loading label="Loading your saved work…" /> : attempt.error ? <ErrorNotice error={attempt.error} retry={attempt.reload} /> : attempt.data && <>
+    <PageTitle eyebrow="My Work / Evaluation results" title={attempt.data.status === 'draft' ? 'Your investigation is in progress.' : 'What this run observed.'}><p className="muted">{attempt.data.status === 'draft' ? 'In progress · not submitted' : attempt.data.status === 'queued' || attempt.data.status === 'running' ? 'Evaluation in progress' : attempt.data.status === 'execution_error' ? 'Evaluation needs attention · no test verdict' : `Saved evaluation results · ${attempt.data.submittedAt ? new Date(attempt.data.submittedAt).toLocaleDateString() : 'date unavailable'}`}</p><details className="attempt-details"><summary>Record details</summary><span>Attempt {shortId(id)} · challenge version {attempt.data.challenge.version} · saved revision {attempt.data.revision} · created {date(attempt.data.createdAt)}</span></details></PageTitle>
+    <div className="context-actions"><Link className="button" href={`/lab/attempts/${id}`}>{attempt.data.status === 'draft' ? 'Resume draft' : 'View submitted work'} <span aria-hidden="true">→</span></Link><Link className="button" href={`/mentors/preview?attempt=${id}`}>Prepare demo mentor context <Badge>Demo</Badge></Link><Link className="button" href={`/opportunities?attempt=${id}`}>Review opportunities</Link></div>
     <EvaluationPanel attempt={attempt.data} />
   </>}</main>;
 }

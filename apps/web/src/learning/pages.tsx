@@ -1,7 +1,8 @@
 import { useApi, useResource } from '../app/context';
 import { Link } from '../app/router';
-import { Badge, ErrorNotice, Loading, PageTitle } from '../components/ui';
+import { ErrorNotice, Loading, PageTitle } from '../components/ui';
 import { EditorialCompanion, LessonBlockView } from './content';
+import { recentWorkSummary } from '../lib/presentation';
 
 const subjects = [
   { number: '01', title: 'Computer networks', relevance: 'HTTP retries, timeouts, lost responses and API semantics.', state: 'In the available lesson', href: '/learn/retry-safe-writes/1', kind: 'available' },
@@ -29,8 +30,8 @@ function LearningBridge() {
     <div className="bridge-flow" role="group" aria-label="HTTP retries and PostgreSQL transaction boundaries lead to the retry-safe credits lab.">
       <div><span>01</span><strong>HTTP retries</strong><small>The same operation may arrive again.</small></div><span className="bridge-plus" aria-hidden="true">+</span>
       <div><span>02</span><strong>PostgreSQL transactions</strong><small>Related writes commit or roll back together.</small></div><span className="bridge-arrow" aria-hidden="true">→</span>
-      <Link href="/lab"><span>Engineering lab</span><strong>Retry-safe credits</strong><small>Compare reviewed implementations against seven disclosed checks.</small></Link>
-      <Link href="/lab/ai-debugging"><span>AI debugging · reconstructed v2</span><strong>Repair a rate limiter</strong><small>Inspect a constrained assistant’s edits and test observations.</small></Link>
+      <Link href="/lab"><span>Architecture &amp; Reliability Lab</span><strong>Retry-safe account credits</strong><small>Compare reviewed implementations and inspect database observations.</small></Link>
+      <Link href="/practice"><span>More practice</span><strong>Explore both engineering labs</strong><small>Choose an architecture exercise or the AI Debugging Lab.</small></Link>
     </div>
   </section>;
 }
@@ -39,15 +40,13 @@ function SavedWork() {
   const { api, userId } = useApi();
   const history = useResource(() => api.history(), `${userId}:learn-history`);
   const items = history.data?.items ?? [];
-  const drafts = items.filter(item => item.status === 'draft');
-  const submitted = items.filter(item => item.status !== 'draft');
+  const { draftCount, submittedCount, latestDraft, latestSubmitted } = recentWorkSummary(items);
 
   return <section className="saved-work" aria-labelledby="saved-work-heading">
     <div className="section-heading"><div><span className="eyebrow">Your saved work</span><h2 id="saved-work-heading">Pick up where you left off.</h2></div><Link href="/evidence">Open full history →</Link></div>
     {history.loading ? <Loading label="Checking your saved attempts…" /> : history.error ? <ErrorNotice error={history.error} retry={history.reload} /> : items.length ? <>
-      {drafts.length > 0 && <div className="saved-work-group"><h3>In progress <span>{drafts.length}</span></h3><div className="saved-work-list">{drafts.map(item => <article key={item.id}><div><strong>Retry-safe account credits</strong><small>Draft · created {new Date(item.createdAt).toLocaleDateString()}</small></div><Link className="button primary" href={`/lab/attempts/${item.id}`}>Resume draft</Link></article>)}</div></div>}
-      {submitted.length > 0 && <div className="saved-work-group"><h3>Submitted work <span>{submitted.length}</span></h3><div className="saved-work-list">{submitted.map(item => <article key={item.id}><div><strong>Retry-safe account credits</strong><small>{item.status === 'execution_error' ? 'Execution error · no test verdict' : item.status === 'queued' || item.status === 'running' ? 'Evaluation in progress' : `Completed · submitted ${item.submittedAt ? new Date(item.submittedAt).toLocaleDateString() : 'date unavailable'}`}</small></div><Link className="button" href={`/evidence/attempts/${item.id}`}>{item.status === 'queued' || item.status === 'running' ? 'View evaluation' : 'View evidence'}</Link></article>)}</div></div>}
-      {history.data?.nextCursor && <p className="small muted">Showing your recent attempts. Older work is available in <Link href="/evidence">My Evidence</Link>.</p>}
+      {latestDraft ? <article className="continue-work-card"><div><span className="eyebrow">Continue a recent draft</span><h3>Retry-safe account credits</h3><p>Created {new Date(latestDraft.createdAt).toLocaleDateString()} · {draftCount} draft{draftCount === 1 ? '' : 's'} in this recent list</p></div><Link className="button primary" href={`/lab/attempts/${latestDraft.id}`}>Resume draft</Link></article> : latestSubmitted && <article className="continue-work-card"><div><span className="eyebrow">Continue from your latest result</span><h3>Retry-safe account credits</h3><p>{latestSubmitted.status === 'execution_error' ? 'Evaluation needs attention · no test verdict' : latestSubmitted.status === 'queued' || latestSubmitted.status === 'running' ? 'Evaluation is in progress' : 'Saved evaluation results'} · {submittedCount} submitted item{submittedCount === 1 ? '' : 's'} in this recent list</p></div><Link className="button" href={`/evidence/attempts/${latestSubmitted.id}`}>{latestSubmitted.status === 'queued' || latestSubmitted.status === 'running' ? 'View evaluation' : 'View results'}</Link></article>}
+      <p className="small muted">{history.data?.nextCursor ? 'Showing recent work. ' : ''}<Link href="/evidence">View all work and saved results →</Link></p>
     </> : <p className="muted">No saved attempts yet. Start the lab when you are ready to draw and investigate.</p>}
   </section>;
 }
@@ -57,12 +56,13 @@ export function LearnHome() {
   const { data, error, loading, reload } = useResource(() => api.courses(), `courses:${userId}`);
   const lessons = data?.flatMap(course => course.lessons.map(lesson => ({ ...lesson, course: course.title }))) ?? [];
   return <main id="main-content" tabIndex={-1} className="page learn-home">
-    <PageTitle eyebrow="Learn & practice" title="Why can one request apply a credit twice?"><p className="lead">Start with a lost HTTP response. Learn why the client retries, then trace the write through PostgreSQL.</p><div className="hero-actions"><Link className="button primary" href="/learn/retry-safe-writes/1">Read the available lesson <span aria-hidden="true">→</span></Link><Link className="button" href="/lab">Open the engineering lab</Link></div></PageTitle>
+    <PageTitle eyebrow="Engineering learning workspace" title="Learn how systems fail. Design a fix. See what happened."><p className="lead">Start with a lost HTTP response, follow the retry through PostgreSQL, and compare your design with real test observations.</p><div className="hero-actions"><Link className="button primary" href="/learn/retry-safe-writes/1">Continue the lesson <span aria-hidden="true">→</span></Link><Link className="button" href="/practice">Explore practice</Link></div></PageTitle>
     <section className="available-section" aria-labelledby="available-heading">
-      <div className="section-heading"><div><span className="eyebrow">Available now</span><h2 id="available-heading">One lesson. One connected lab.</h2></div><Badge>Seeded lesson · editorial review pending</Badge></div>
+      <div className="section-heading"><div><span className="eyebrow">Available now</span><h2 id="available-heading">One lesson. Two ways to practice.</h2></div><p className="content-status">Lesson content is seeded; editorial review is pending.</p></div>
       {loading ? <Loading label="Loading available learning…" /> : error ? <ErrorNotice error={error} retry={reload} /> : lessons.length ? <div className="available-grid">
-        {lessons.map(lesson => <article className="available-card lesson-card" key={`${lesson.slug}:${lesson.version}`}><span className="available-kind">Lesson · v{lesson.version}</span><h3>{lesson.title}</h3><p>Understand application retries, durable idempotency records, and the database transaction that protects a write.</p><Link href={`/learn/${lesson.slug}/${lesson.version}`}>Read lesson <span aria-hidden="true">→</span></Link></article>)}
-        <article className="available-card lab-card"><span className="available-kind">Engineering lab · retry-safe-credit v1</span><h3>Test a retry-safe credit operation.</h3><p>Draw the system, compare three reviewed implementations, and inspect the actual results of seven PostgreSQL checks.</p><Link href="/lab">Start or resume the lab <span aria-hidden="true">→</span></Link></article>
+        {lessons.map(lesson => <article className="available-card lesson-card" key={`${lesson.slug}:${lesson.version}`}><span className="available-kind">Backend reliability · Lesson 01</span><h3>{lesson.title}</h3><p>Understand application retries, durable idempotency records, and the database transaction that protects a write.</p><Link href={`/learn/${lesson.slug}/${lesson.version}`}>Read lesson <span aria-hidden="true">→</span></Link></article>)}
+        <article className="available-card lab-card"><span className="available-kind">Architecture &amp; Reliability Lab</span><h3>Design a retry-safe credit operation.</h3><p>Draw the system, compare reviewed implementations, and inspect the results of seven PostgreSQL checks.</p><Link href="/lab">Open architecture lab <span aria-hidden="true">→</span></Link></article>
+        <article className="available-card debugging-card"><span className="available-kind">AI Debugging Lab</span><h3>Investigate and repair a rate limiter.</h3><p>Review a constrained assistant’s source changes, run visible tests, and inspect the submitted sandbox report.</p><Link href="/lab/ai-debugging">Open AI Debugging Lab <span aria-hidden="true">→</span></Link></article>
       </div> : <p>No lessons are currently available.</p>}
     </section>
     <SavedWork />
@@ -83,7 +83,7 @@ export function LessonReader({ slug, version }: { slug: string; version: number 
     </nav><Link className="outline-next" href="/lab">Go to the lab →</Link><p className="small muted">Lesson reading is not assessed.</p></aside>
     <article className="lesson-reader"><div className="reading-measure">
       {lesson.loading ? <Loading label="Loading the available lesson…" /> : lesson.error ? <ErrorNotice error={lesson.error} retry={lesson.reload} /> : lesson.data && <>
-        <div id="lesson-start"><PageTitle eyebrow={`Seeded lesson · v${lesson.data.version}`} title={lesson.data.title}><p className="muted">{lesson.data.authoredBy}</p></PageTitle></div>
+        <div id="lesson-start"><PageTitle eyebrow="Backend reliability · Lesson 01" title={lesson.data.title}><p className="content-status">Editorial review is pending.</p><details className="lesson-content-details"><summary>Content details</summary><p>Seeded lesson · version {lesson.data.version}</p><p>{lesson.data.authoredBy}</p></details></PageTitle></div>
         <div className="published-blocks">{lesson.data.blocks.map((block, index) => <section className="lesson-concept" key={block.id}>
           <span className="lesson-step">{String(index + 1).padStart(2, '0')}</span><div><h2>{blockTitles[block.id] ?? 'Lesson concept'}</h2><LessonBlockView block={block} /></div>
         </section>)}</div>

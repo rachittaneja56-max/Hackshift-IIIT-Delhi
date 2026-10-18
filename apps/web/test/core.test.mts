@@ -1,14 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ArtifactSchema, SubmissionReadyArtifactSchema } from '@trajectoryos/contracts';
+import { ArtifactSchema, SubmissionReadyArtifactSchema, type AttemptSummary } from '@trajectoryos/contracts';
 import { ApiClient, ApiClientError, EvidenceSchema, apiOrigin } from '../src/lib/api.ts';
 import { SaveQueue } from '../src/attempts/save-queue.ts';
 import { artifactError, recoveryArtifact, sceneError, serializeElements } from '../src/lib/scenes.ts';
-import { feedbackLabel, observationSummary, testLabel } from '../src/lib/presentation.ts';
+import { decisionLabel, feedbackLabel, observationSummary, recentWorkSummary, saveStatusLabel, testLabel } from '../src/lib/presentation.ts';
 import { serverSubmissionIssues, submissionIssues } from '../src/attempts/validation.ts';
 import { mentorPacket } from '../src/previews/model.ts';
 import { careerApi } from '../src/previews/career-api.ts';
 import { SceneSession } from '../src/drawing/scene-session.ts';
+import { activePrimaryNavigation, primaryNavigation } from '../src/app/navigation.ts';
 
 const empty = () => ({ hld: null, lld: null, decisions: { keyScope: null, atomicity: null, payloadConflict: null }, variantId: null, aiCritique: null, repairJustification: null });
 const id = '11111111-1111-4111-8111-111111111111';
@@ -223,4 +224,46 @@ test('S8: design review API adapter validates GET and retry request envelopes', 
 test('S8: canonical check labels give career evidence a human description while preserving test IDs', () => {
   assert.match(testLabel('T5'), /failure after the balance update rolls back the transaction/i);
   assert.equal(testLabel('T8'), 'Returned test observation');
+});
+
+test('S9: primary navigation exposes practice and opportunities while preserving existing route families', () => {
+  assert.deepEqual(primaryNavigation.map(item => [item.href, item.label]), [
+    ['/learn', 'Learn'], ['/practice', 'Practice'], ['/evidence', 'My Work'], ['/opportunities', 'Opportunities'],
+  ]);
+  assert.equal(activePrimaryNavigation('/lab/ai-debugging'), 'practice');
+  assert.equal(activePrimaryNavigation('/lab/attempts/attempt-id/design/hld'), 'practice');
+  assert.equal(activePrimaryNavigation('/evidence/attempts/evidence-id'), 'work');
+  assert.equal(activePrimaryNavigation('/career/preview'), 'opportunities');
+  assert.equal(activePrimaryNavigation('/opportunities'), 'opportunities');
+});
+
+test('S9: save state uses learner wording while preserving technical revision detail separately', () => {
+  assert.equal(saveStatusLabel('Saved'), 'All changes saved');
+  assert.equal(saveStatusLabel('Saving'), 'Saving…');
+  assert.equal(saveStatusLabel('Offline'), 'Changes not saved');
+  assert.equal(saveStatusLabel('Frozen'), 'Submitted · read-only');
+  assert.equal(saveStatusLabel('Saved', false, true), 'Check submission status');
+});
+
+test('S9: evidence summaries translate stored decisions without dropping their concepts', () => {
+  assert.equal(decisionLabel('keyScope', 'account'), 'One key per account');
+  assert.equal(decisionLabel('atomicity', 'transaction'), 'All writes commit together');
+  assert.equal(decisionLabel('payloadConflict', 'reject'), 'Reject a changed request');
+  assert.equal(decisionLabel('payloadConflict', null), 'Not selected');
+});
+
+test('S9: landing history summary groups drafts and selects one newest-created draft', () => {
+  const make = (attemptId: string, status: AttemptSummary['status'], createdAt: string): AttemptSummary => ({
+    id: attemptId, challenge: { slug: 'retry-safe-credit', version: 1 }, status, createdAt,
+    submittedAt: status === 'draft' ? null : createdAt, evidenceId: status === 'evaluated' ? attemptId : null,
+  });
+  const summary = recentWorkSummary([
+    make('draft-old', 'draft', '2026-10-15T00:00:00.000Z'),
+    make('draft-new', 'draft', '2026-10-17T00:00:00.000Z'),
+    make('submitted', 'evaluated', '2026-10-16T00:00:00.000Z'),
+  ]);
+  assert.equal(summary.draftCount, 2);
+  assert.equal(summary.submittedCount, 1);
+  assert.equal(summary.latestDraft?.id, 'draft-new');
+  assert.equal(summary.latestSubmitted?.id, 'submitted');
 });

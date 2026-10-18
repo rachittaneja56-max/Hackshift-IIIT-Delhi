@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { AttemptSummary, CareerReviewDto, CreateCareerReview } from '@trajectoryos/contracts';
 import { useApi } from '../app/context';
 import { Link } from '../app/router';
-import { Badge, ErrorNotice, Loading, PageTitle, PreviewNotice, shortId } from '../components/ui';
+import { Badge, ErrorNotice, Loading, PageTitle, shortId } from '../components/ui';
 import { careerApi } from './career-api';
 import { sampleJob } from './fixtures';
 import { useOwnedSelection } from './selection';
@@ -10,12 +10,12 @@ import { testLabel } from '../lib/presentation';
 
 type CareerStage = 'job' | 'evidence' | 'review' | 'resume';
 export function CareerSteps({ stage, complete }: { stage: CareerStage; complete: CareerStage[] }) {
-  const steps: { id: CareerStage; label: string }[] = [{ id: 'job', label: 'Add a job description' }, { id: 'evidence', label: 'Choose evidence' }, { id: 'review', label: 'Review requirements' }, { id: 'resume', label: 'Edit a résumé draft' }];
-  return <ol className="career-steps" aria-label="Career review steps">{steps.map((step, index) => <li key={step.id} className={complete.includes(step.id) ? 'complete' : stage === step.id ? 'current' : ''} aria-current={stage === step.id ? 'step' : undefined}><span>{String(index + 1).padStart(2, '0')}</span>{step.label}</li>)}</ol>;
+  const steps: { id: CareerStage; label: string }[] = [{ id: 'job', label: 'Role' }, { id: 'evidence', label: 'Evidence' }, { id: 'review', label: 'Analysis' }, { id: 'resume', label: 'Résumé' }];
+  return <ol className="career-steps" aria-label="Opportunity review progress">{steps.map((step, index) => <li key={step.id} className={complete.includes(step.id) ? 'complete' : stage === step.id ? 'current' : ''} aria-current={stage === step.id ? 'step' : undefined}><span>{String(index + 1).padStart(2, '0')}</span>{step.label}</li>)}</ol>;
 }
 
 function attemptLabel(item: AttemptSummary) {
-  return item.status === 'execution_error' ? 'Execution error' : 'Completed evaluation';
+  return item.status === 'execution_error' ? 'Needs attention' : 'Completed evaluation';
 }
 
 function coverageLabel(value: string) {
@@ -24,6 +24,10 @@ function coverageLabel(value: string) {
 
 export function CareerRelatedChecks({ tests }: { tests: { testId: string; status: string }[] }) {
   return <details className="related-checks"><summary>Related checks ({tests.length})</summary><ul>{tests.map(test => <li key={test.testId}><strong>{test.testId}</strong><span>{testLabel(test.testId)}</span><span className={test.status === 'passed' ? 'pass-text' : 'fail-text'}>{test.status}</span></li>)}</ul></details>;
+}
+
+export function CareerEmptyEvidence() {
+  return <div className="career-no-evidence"><h4>Complete one engineering lab to create test-backed evidence.</h4><p>Draft drawings and evaluation errors do not contain completed test observations, so they cannot be selected here.</p><Link className="button" href="/practice">Open practice challenges →</Link></div>;
 }
 
 export function CareerPreview() {
@@ -111,8 +115,8 @@ export function CareerPreview() {
   const inputDisabled = busy || resumeBusy;
 
   return <main id="main-content" tabIndex={-1} className="page preview-page career-page">
-    <PreviewNotice>Private, owner-only analysis · no employer sharing, job search or application API.</PreviewNotice>
-    <PageTitle eyebrow="Career / Evidence review" title="Compare a real job description with selected evidence."><p className="lead">Review what your completed test records observed, where a requirement is unassessed, and which statements come only from you.</p></PageTitle>
+    <p className="private-note">Private to your account · no employer receives your job description or evidence.</p>
+    <PageTitle eyebrow="Opportunities / Evidence review" title="Understand how your engineering work relates to a job."><p className="lead">Compare a real job description with completed test evidence, then separate observed results from self-reported facts.</p></PageTitle>
     <CareerSteps stage={stage} complete={complete} />
 
     <section className="career-real-review" aria-labelledby="career-input-heading">
@@ -121,7 +125,7 @@ export function CareerPreview() {
         <section className="career-input-section"><span className="career-step-number">01</span><div><h3>Paste a real job description.</h3><label className="field" htmlFor="career-job-description">Job description<textarea id="career-job-description" disabled={inputDisabled} value={jobDescription} maxLength={8000} onChange={event => { clearReview(); setJobDescription(event.target.value); }} placeholder="Paste up to 8,000 characters from a job description." /></label><p className="small muted">When you request analysis, the app sends this text, your selected evidence and optional candidate facts to its configured analysis provider. No employer receives the result.</p></div></section>
         <section className="career-input-section"><span className="career-step-number">02</span><div><h3>Select completed evidence records.</h3><p className="muted">{selectedEvidenceIds.length}/10 records selected. Your selection stays checked as older history loads.</p>
           <fieldset className="career-choices"><legend>Owned records with completed evaluations</legend>
-            {state.history.loading ? <Loading label="Loading your attempt history…" /> : state.history.error ? <div className="career-no-evidence"><h4>Attempt history did not load.</h4><p>Retry the history request before deciding whether evidence is available.</p></div> : eligible.length ? eligible.map(item => <label key={item.evidenceId} htmlFor={`career-evidence-${item.evidenceId}`}><input id={`career-evidence-${item.evidenceId}`} type="checkbox" disabled={inputDisabled || (selectedEvidenceIds.length >= 10 && !selectedEvidenceIds.includes(item.evidenceId))} checked={selectedEvidenceIds.includes(item.evidenceId)} onChange={() => toggleEvidence(item.evidenceId)} /><span>Attempt <code>{shortId(item.id)}</code> · evidence <code>{shortId(item.evidenceId)}</code><small>{attemptLabel(item)} · {item.submittedAt ? new Date(item.submittedAt).toLocaleDateString() : 'submission date unavailable'}</small></span><Badge>{item.status}</Badge></label>) : <div className="career-no-evidence"><h4>No completed evidence in this history page.</h4><p>Only completed evaluations create evidence for this review. This page contains {state.items.filter(item => item.status === 'draft').length} draft and {state.items.filter(item => item.status === 'execution_error').length} execution-error record(s); neither contains test observations.</p>{!state.next && <Link className="button" href="/lab">Open the engineering lab →</Link>}</div>}
+            {state.history.loading ? <Loading label="Loading your attempt history…" /> : state.history.error ? <div className="career-no-evidence"><h4>Attempt history did not load.</h4><p>Retry the history request before deciding whether evidence is available.</p></div> : eligible.length ? eligible.map(item => <div className="career-evidence-option" key={item.evidenceId}><label htmlFor={`career-evidence-${item.evidenceId}`}><input id={`career-evidence-${item.evidenceId}`} type="checkbox" disabled={inputDisabled || (selectedEvidenceIds.length >= 10 && !selectedEvidenceIds.includes(item.evidenceId))} checked={selectedEvidenceIds.includes(item.evidenceId)} onChange={() => toggleEvidence(item.evidenceId)} /><span>Saved evaluation · {item.submittedAt ? new Date(item.submittedAt).toLocaleDateString() : 'date unavailable'}<small>{attemptLabel(item)}{item.status === 'execution_error' ? ' · no test verdict' : ''}</small></span><Badge>{item.status === 'execution_error' ? 'Needs attention' : 'Completed'}</Badge></label><details><summary>Record references</summary><p>Attempt {shortId(item.id)} · evidence {shortId(item.evidenceId)}</p></details></div>) : <CareerEmptyEvidence />}
           </fieldset>
           {state.next && <button disabled={state.busy || inputDisabled} onClick={() => void state.more()}>{state.busy ? 'Loading older history…' : eligible.length ? 'Load older completed evidence' : 'Check older attempts for evidence'}</button>}
           <ErrorNotice error={state.history.error ?? state.error} retry={state.history.error ? state.history.reload : state.more} />
@@ -148,7 +152,7 @@ export function CareerPreview() {
         </tr>)}</tbody></table></div> : <p>No explicit requirements were extracted.</p>}
         <section className="unresolved-requirements"><h3>Not observed, self-reported or unassessed</h3>{unresolved.length ? <ul>{unresolved.map(requirement => <li key={requirement.id}><Badge>{coverageLabel(requirement.coverage)}</Badge><span>{requirement.text}</span></li>)}</ul> : <p>All extracted items were linked to related observations. This does not establish overall role qualification.</p>}</section>
         <section className="career-evidence-records"><h3>Selected evidence · returned test outcomes</h3>{review.evidence.map(record => <article className="included-run" key={record.evidenceId}>
-          <div className="section-heading"><h4>Attempt {shortId(record.attemptId)} · evidence {shortId(record.evidenceId)}</h4><Badge>Reviewed variant · {record.variantId}</Badge></div>
+          <div className="section-heading"><h4>Saved evaluation results</h4><Badge>Selected implementation</Badge></div>
           <CareerRelatedChecks tests={record.tests} />
           <p className="hash small">Artifact {record.provenance.artifactSha256} · recorded {new Date(record.createdAt).toLocaleString()}</p>
           <details><summary>Evidence provenance</summary><dl className="provenance-data"><div><dt>Runner</dt><dd>{record.provenance.runnerKind}</dd></div><div><dt>Challenge</dt><dd>{record.provenance.challenge.slug} v{record.provenance.challenge.version}</dd></div><div><dt>Content / manifest</dt><dd>{record.provenance.contentSha256} / {record.provenance.manifestSha256}</dd></div><div><dt>Suite</dt><dd>{record.provenance.suiteVersion} · {record.provenance.suiteSha256}</dd></div><div><dt>Implementation</dt><dd>{record.provenance.implementationSha256}</dd></div><div><dt>App commit</dt><dd>{record.provenance.appCommit}</dd></div><div><dt>Database</dt><dd>{record.provenance.databaseVersion}</dd></div><div><dt>Run</dt><dd>{record.provenance.runId} · generation {record.provenance.generation}</dd></div><div><dt>Run times</dt><dd>{record.provenance.startedAt} — {record.provenance.finishedAt}</dd></div></dl></details>
@@ -163,6 +167,6 @@ export function CareerPreview() {
     </section>}
 
     <details className="career-sample-preview"><summary>Open a fictional sample job description</summary><div className="notice"><Badge>Seeded example · local preview only · not submitted</Badge><h3>{sampleJob.title}</h3><p>{sampleJob.description}</p><h4>Illustrative requirements</h4><ul>{sampleJob.requirements.map(requirement => <li key={requirement.id}>{requirement.text} · sample references {requirement.tests.join(', ')}</li>)}</ul><h4>Not assessed in this sample</h4><ul>{sampleJob.notAssessed.map(text => <li key={text}>{text}</li>)}</ul></div></details>
-    <p className="planned-note">Reviews stay private to your account. No ATS score, hiring probability, job search, employer account or application action is provided.</p>
+    <p className="planned-note">This review does not calculate a qualification score or hiring probability. It does not search or apply for jobs.</p>
   </main>;
 }

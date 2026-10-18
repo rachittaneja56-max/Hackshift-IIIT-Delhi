@@ -9,6 +9,8 @@ import { LabLanding, AttemptWorkspace } from '../attempts/workspace';
 import { HistoryPage, EvidencePage } from '../evidence/pages';
 import { MentorPreview, CareerPreview } from '../previews/pages';
 import { CodeLab } from '../code-lab/CodeLab';
+import { PracticeHome } from '../practice/pages';
+import { activePrimaryNavigation, primaryNavigation } from './navigation';
 function SystemAppearance() {
   useEffect(() => {
     const media = matchMedia('(prefers-color-scheme: dark)');
@@ -24,9 +26,10 @@ export function ThemeButton() {
   return <button className="theme-button" aria-label={`Appearance: ${theme}. Change appearance`} title={`Appearance: ${theme}`} onClick={() => setTheme(theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system')}>{theme === 'dark' ? '☾' : theme === 'light' ? '☀' : '◐'}</button>;
 }
 export function Header({ account = true }: { account?: boolean }) {
-  const { path, search } = useRouter(); const selected = new URLSearchParams(search).get('attempt') ?? path.match(/\/(?:lab|evidence)\/attempts\/([^/]+)/)?.[1]; const ctx = selected ? `?attempt=${encodeURIComponent(selected)}` : '';
+  const { path } = useRouter();
   if (/\/design\/(hld|lld)$/.test(path)) return null;
-  return <header className="site-header"><Link className="brand" href="/learn"><span className="brand-mark" aria-hidden="true">t<span>↗</span></span>Trajectory<span className="brand-os">Os</span></Link><nav aria-label="Main navigation">{[['/learn', 'Learn'], ['/lab', 'Engineering Lab'], ['/evidence', 'My Evidence']].map(([href, label]) => <Link key={href} href={href} aria-current={path.startsWith(href) ? 'page' : undefined}>{label}</Link>)}</nav><nav className="preview-nav" aria-label="Product previews"><Link href={`/mentors/preview${ctx}`} aria-current={path.startsWith('/mentors') ? 'page' : undefined}>Mentors <small>Preview</small></Link><Link href={`/career/preview${ctx}`} aria-current={path.startsWith('/career') ? 'page' : undefined}>Career <small>Preview</small></Link></nav><div className="account"><ThemeButton />{account && <UserButton />}</div></header>;
+  const active = activePrimaryNavigation(path);
+  return <header className="site-header"><Link className="brand" href="/learn"><span className="brand-mark" aria-hidden="true">t<span>↗</span></span>Trajectory<span className="brand-os">Os</span></Link><nav aria-label="Main navigation">{primaryNavigation.map(item => <Link key={item.key} href={item.href} aria-current={active === item.key ? 'page' : undefined}>{item.label}</Link>)}</nav><div className="account"><ThemeButton />{account && <UserButton />}</div></header>;
 }
 export function AppRoutes() {
   const { path } = useRouter(); const attemptMatch = path.match(/^\/lab\/attempts\/([^/]+)(?:\/design\/(hld|lld))?$/); const evidenceMatch = path.match(/^\/evidence\/attempts\/([^/]+)$/); const lessonMatch = path.match(/^\/learn\/([^/]+)\/(\d+)$/);
@@ -34,9 +37,10 @@ export function AppRoutes() {
   if (evidenceMatch) return <EvidencePage key={evidenceMatch[1]} id={evidenceMatch[1]} />;
   if (lessonMatch) return <LessonReader slug={lessonMatch[1]} version={Number(lessonMatch[2])} />;
   if (path === '/lab') return <LabLanding />;
+  if (path === '/practice') return <PracticeHome />;
   if (path === '/evidence') return <HistoryPage />;
   if (path === '/mentors/preview') return <MentorPreview />;
-  if (path === '/career/preview') return <CareerPreview />;
+  if (path === '/career/preview' || path === '/opportunities') return <CareerPreview />;
   if (path === '/learn' || path === '/') return <LearnHome />;
    if (path === '/lab/ai-debugging') return <CodeLab />;
   return <main id="main-content" tabIndex={-1} className="page"><h1>That page is unavailable.</h1><Link href="/learn">Return to learning →</Link></main>;

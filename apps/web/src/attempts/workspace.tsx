@@ -11,6 +11,7 @@ import { SaveQueue } from './save-queue';
 import { StartAttempt } from './start';
 import { EvaluationPanel } from '../evidence/evaluation';
 import { ApiClientError } from '../lib/api';
+import { saveStatusLabel } from '../lib/presentation';
 import { serverSubmissionIssues, submissionIssues, submissionIssue, type SubmissionIssue } from './validation';
 export const variantLabel = (id: string | null) => id === 'credit-first' ? 'Variant A' : id === 'key-only' ? 'Variant B' : id === 'atomic' ? 'Variant C' : 'Not selected';
 export function LabLanding() {
@@ -26,7 +27,10 @@ function Requirements({ challenge }: { challenge: ChallengeDto }) {
     <Link className="small" href="/lab">Challenge overview →</Link>
   </div>;
 }
-function SaveStatus({ queue }: { queue: SaveQueue }) { return <span className={`save-status ${queue.state === 'Conflict' || queue.state === 'Offline' ? 'warn' : ''}`} role="status">{queue.state === 'Saved' ? `Saved · revision ${queue.server.revision}` : queue.state === 'Frozen' ? `Frozen · revision ${queue.server.revision}` : queue.state}{queue.submitting && ' · Submitting'}</span>; }
+function SaveStatus({ queue }: { queue: SaveQueue }) {
+  const label = saveStatusLabel(queue.state, queue.submitting, queue.submissionUnknown);
+  return <div className={`save-status ${queue.state === 'Conflict' || queue.state === 'Offline' ? 'warn' : ''}`} role="status"><span>{label}</span><details><summary>Save details</summary><span>Server revision {queue.server.revision} · {queue.state}</span></details></div>;
+}
 function RecoveryDownload({ queue }: { queue: SaveQueue }) { const download = () => { const url = URL.createObjectURL(new Blob([JSON.stringify({ local: queue.local, base: queue.conflictBase ?? queue.server.artifact }, null, 2)], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = `trajectoryos-${queue.server.id}-recovery.json`; a.click(); URL.revokeObjectURL(url); }; return <button onClick={download}>Download local recovery</button>; }
 function UnsupportedContent({ queue, scene, onRemove }: { queue: SaveQueue; scene: 'hld' | 'lld'; onRemove: () => void }) {
   const elements = queue.local[scene]?.elements ?? [];
@@ -39,10 +43,13 @@ function Conflicts({ queue }: { queue: SaveQueue }) {
   if (!queue.conflict) return null;
   return <section className="notice warning"><h2>Two drafts need your review.</h2><p>Your local work is retained. The server is at revision {queue.conflict.revision}. Compare the snapshots before explicitly reapplying all local fields.</p><div className="comparison"><details><summary>Base snapshot</summary><pre>{JSON.stringify(queue.conflictBase, null, 2)}</pre></details><details><summary>Your local snapshot</summary><pre>{JSON.stringify(queue.local, null, 2)}</pre></details><details><summary>Current server snapshot</summary><pre>{JSON.stringify(queue.conflict.artifact, null, 2)}</pre></details></div><div className="actions"><button onClick={() => queue.resolve(false)}>Load server draft</button>{queue.conflict.status === 'draft' && <button onClick={() => queue.resolve(true)}>Reapply local after comparison</button>}<RecoveryDownload queue={queue} /></div></section>;
 }
-function WorkflowSteps({ active }: { active: 'design' | 'code' | 'review' | 'evidence' }) {
-  const steps = [['design', 'Design'], ['code', 'Investigate'], ['review', 'Review & submit'], ['evidence', 'Evaluation']] as const;
-  const activeIndex = steps.findIndex(([key]) => key === active);
-  return <ol className="workflow-steps" aria-label="Lab workflow">{steps.map(([key, label], index) => <li className={index < activeIndex ? 'done' : index === activeIndex ? 'current' : ''} aria-current={index === activeIndex ? 'step' : undefined} key={key}><span>{String(index + 1).padStart(2, '0')}</span>{label}</li>)}</ol>;
+function WorkflowSteps({ active, submitted, canReview, onReview, id }: { active: 'design' | 'code' | 'review' | 'evidence'; submitted: boolean; canReview: boolean; onReview: () => void; id: string }) {
+  return <nav className="workflow-steps" aria-label="Attempt workflow">
+    <Link className={active === 'design' ? 'current' : ''} aria-current={active === 'design' ? 'step' : undefined} href={`/lab/attempts/${id}?tab=design`}><span>01</span>Design</Link>
+    <Link className={active === 'code' ? 'current' : ''} aria-current={active === 'code' ? 'step' : undefined} href={`/lab/attempts/${id}?tab=code`}><span>02</span>Investigate</Link>
+    {submitted ? <span className="workflow-step completed"><span>03</span>Submitted</span> : <button type="button" className={active === 'review' ? 'current' : ''} aria-current={active === 'review' ? 'step' : undefined} disabled={!canReview} onClick={onReview}><span>03</span>Review &amp; submit</button>}
+    {submitted ? <Link className={active === 'evidence' ? 'current' : ''} aria-current={active === 'evidence' ? 'step' : undefined} href={`/lab/attempts/${id}?tab=evidence`}><span>04</span>Results</Link> : <span className="workflow-step unavailable" aria-disabled="true"><span>04</span>Results</span>}
+  </nav>;
 }
 
 function StarterDiagram({ scene }: { scene: 'hld' | 'lld' }) {
@@ -66,25 +73,24 @@ function SceneGuide({ scene }: { scene: 'hld' | 'lld' }) {
   return <details className="scene-guide"><summary>View an example structure</summary><figure><StarterDiagram scene={scene} /><figcaption>Illustrative guidance only. It is not added to your drawing or saved with your attempt.</figcaption></figure></details>;
 }
 
-function SceneLauncher({ scene, id, prompt, count, frozen, invalid }: { scene: 'hld' | 'lld'; id: string; prompt: string; count: number; frozen: boolean; invalid: boolean }) {
+function SceneLauncher({ scene, id, prompt, count, frozen, invalid, sceneData }: { scene: 'hld' | 'lld'; id: string; prompt: string; count: number; frozen: boolean; invalid: boolean; sceneData: Artifact['hld'] }) {
   const label = scene === 'hld' ? 'High-level design' : 'Low-level design';
   return <article id={`field-${scene}`} tabIndex={-1} aria-invalid={invalid} className={`scene-card ${scene === 'hld' ? 'field-hld' : 'field-lld'} ${invalid ? 'field-invalid' : ''}`}>
-    <Link className="scene-launcher" href={`/lab/attempts/${id}/design/${scene}`} aria-label={`${frozen ? 'View' : count ? 'Continue' : 'Open'} ${label}`}>
-      <span className="eyebrow">{scene.toUpperCase()} / {label}</span><div className="diagram-glyph" aria-hidden="true">{scene === 'hld' ? 'Client → API → Database' : 'Key → Transaction → Writes'}</div>
-      <h3>{frozen ? `View ${scene.toUpperCase()} drawing` : count ? `Continue ${scene.toUpperCase()} drawing` : `Open ${scene.toUpperCase()} drawing`} <span aria-hidden="true">↗</span></h3>
-      <p>{prompt}</p><small>{count ? `${count} drawable elements · ${frozen ? 'saved scene' : 'saved independently'}` : 'Empty scene · nothing has been prefilled'}</small>
-    </Link>
-    <SceneGuide scene={scene} />
+    <div className="scene-card-preview">{count && sceneData ? <SceneView sceneKey={`${id}:card:${scene}`} scene={sceneData} name={`Saved ${scene.toUpperCase()} preview`} readOnly /> : <figure><StarterDiagram scene={scene} /><figcaption>Illustrative structure · your drawing starts empty</figcaption></figure>}</div>
+    <div className="scene-card-content"><span className="eyebrow">{scene.toUpperCase()} / {label}</span><h3>{frozen ? `View ${scene.toUpperCase()} drawing` : count ? `Continue ${scene.toUpperCase()} drawing` : `Start ${scene.toUpperCase()} drawing`}</h3>
+      <p>{prompt}</p><small>{count ? `${count} saved elements` : 'No drawing has been added yet'}</small>
+      <Link className="button" href={`/lab/attempts/${id}/design/${scene}`} aria-label={`${frozen ? 'View' : count ? 'Continue' : 'Open'} ${label}`}>{frozen ? 'View drawing' : count ? 'Continue drawing' : 'Open drawing'} <span aria-hidden="true">→</span></Link>
+    </div>
   </article>;
 }
 
 function DecisionFields({ artifact, disabled, change, invalidPaths }: { artifact: Artifact; disabled: boolean; change: (update: Partial<Artifact>) => void; invalidPaths: string[] }) {
   const fields = [
-    { key: 'keyScope', label: 'Idempotency key scope', help: 'T6 checks whether two accounts can use the same key independently.', options: [['account', 'Per account'], ['global', 'Global']] },
-    { key: 'atomicity', label: 'Database write boundary', help: 'T5 injects a failure after the balance update and checks rollback.', options: [['transaction', 'One transaction'], ['separate_writes', 'Separate writes']] },
-    { key: 'payloadConflict', label: 'Same key, changed payload', help: 'T4 checks whether a different amount is rejected without writes.', options: [['reject', 'Reject the conflict'], ['replay', 'Replay the original']] },
+    { key: 'keyScope', label: 'Which requests share a key?', help: 'Choose whether keys belong to one account or are shared globally.', reference: 'T6 · The same key remains independent across two accounts.', options: [['account', 'Per account'], ['global', 'Global']] },
+    { key: 'atomicity', label: 'What commits together?', help: 'Choose whether balance, ledger, operation and replay data form one transaction.', reference: 'T5 · A failure after the balance update rolls back the transaction.', options: [['transaction', 'One transaction'], ['separate_writes', 'Separate writes']] },
+    { key: 'payloadConflict', label: 'What if the amount changes?', help: 'Choose what happens when the same account and key arrive with a different amount.', reference: 'T4 · A changed amount with the same account and key is rejected.', options: [['reject', 'Reject the conflict'], ['replay', 'Replay the original']] },
   ] as const;
-  return <fieldset disabled={disabled} className="decisions"><legend>Three design decisions</legend>{fields.map(field => <label className="decision-field" htmlFor={`field-decisions-${field.key}`} key={field.key}><span>{field.label}<small>{field.help}</small></span><select id={`field-decisions-${field.key}`} aria-invalid={invalidPaths.includes(`decisions.${field.key}`)} value={artifact.decisions[field.key] ?? ''} onChange={event => change({ decisions: { ...artifact.decisions, [field.key]: event.target.value || null } })}><option value="">Choose one…</option>{field.options.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>)}</fieldset>;
+  return <fieldset disabled={disabled} className="decisions"><legend>Three design decisions</legend>{fields.map(field => <fieldset className="decision-field" key={field.key} aria-invalid={invalidPaths.includes(`decisions.${field.key}`)}><legend>{field.label}</legend><p>{field.help}</p><div className="decision-options">{field.options.map(([value, label]) => <label key={value}><input type="radio" name={`decision-${field.key}`} value={value} checked={artifact.decisions[field.key] === value} onChange={() => change({ decisions: { ...artifact.decisions, [field.key]: value } })} />{label}</label>)}</div><details><summary>Check reference</summary><p>{field.reference}</p></details></fieldset>)}</fieldset>;
 }
 
 export function AttemptWorkspace({ id, scene }: { id: string; scene?: 'hld' | 'lld' }) {
@@ -154,15 +160,14 @@ export function AttemptWorkspace({ id, scene }: { id: string; scene?: 'hld' | 'l
   }
 
   return <main id="main-content" tabIndex={-1} className="workspace">
-    <div className="attempt-header"><div><span className="eyebrow">Engineering lab · challenge v1 · attempt {shortId(id)}</span><h1 tabIndex={-1}>{challenge.data.title}</h1></div><div className="attempt-state"><Badge>{queue.server.status.replaceAll('_', ' ')}</Badge><SaveStatus queue={queue} /></div></div>
-    {banners}<WorkflowSteps active={review ? 'review' : tab} />
-    <div className="workspace-tabs" role="navigation" aria-label="Attempt sections">{[['design', '01', 'Design'], ['code', '02', 'Investigate code'], ['evidence', '03', 'Evidence']].map(([value, number, label]) => <Link id={`tab-${value}`} key={value} href={`/lab/attempts/${id}?tab=${value}`} aria-current={tab === value ? 'page' : undefined}><small>{number}</small> {label}</Link>)}</div>
+    <div className="attempt-header"><div><span className="eyebrow">Architecture &amp; Reliability Lab</span><h1 tabIndex={-1}>{challenge.data.title}</h1><details className="attempt-details"><summary>Attempt details</summary><span>Attempt {shortId(id)} · challenge version {challenge.data.version}</span></details></div><div className="attempt-state"><Badge>{queue.server.status === 'draft' ? 'In progress' : queue.server.status === 'queued' || queue.server.status === 'running' ? 'Evaluating' : queue.server.status === 'execution_error' ? 'Evaluation needs attention' : 'Completed'}</Badge><SaveStatus queue={queue} /></div></div>
+    {banners}<WorkflowSteps active={review ? 'review' : tab} submitted={queue.server.status !== 'draft'} canReview={!disabled && queue.state !== 'Saving'} onReview={beginReview} id={id} />
     {showValidation && missing.length > 0 && <div className="notice warning submission-errors" role="alert" aria-labelledby="submission-errors-title"><h2 id="submission-errors-title">Complete these fields before submitting.</h2><ul>{missing.map(issue => <li key={issue.path}><a href={`#${issue.targetId}`}>{issue.message}</a></li>)}</ul><details><summary>Advanced: validation details</summary><ul>{missing.map(issue => <li key={issue.path}><code>{issue.path || 'submission'}</code> · {issue.diagnostic}</li>)}</ul></details></div>}
     <div className="lab-grid"><aside className="requirements"><Requirements challenge={challenge.data} /></aside><section className="lab-work">
       {tab === 'evidence' ? <EvaluationPanel attempt={queue.server} /> : tab === 'code' ? <Investigation attemptId={id} artifact={artifact} challenge={challenge.data} disabled={disabled} change={change} invalidPaths={missing.map(issue => issue.path)} /> : <>
         <div className="section-heading"><div><span className="eyebrow">Step 1 / Design the behavior</span><h2>Show where the request goes and what must commit.</h2></div><Badge>Saved as a human-review artifact</Badge></div>
         <p className="muted design-intro">Draw the client, API and database in HLD. Use LLD to show key reservation, payload conflicts, transaction scope and stored response. Both scenes start empty; example guidance stays outside your work.</p>
-        <div className="scene-launchers">{(['hld', 'lld'] as const).map(name => <SceneLauncher key={name} scene={name} id={id} prompt={challenge.data!.diagramPrompts[name]} count={drawableCount(artifact[name])} frozen={frozen} invalid={missing.some(issue => issue.path === name)} />)}</div>
+        <div className="scene-launchers">{(['hld', 'lld'] as const).map(name => <SceneLauncher key={name} scene={name} id={id} prompt={challenge.data!.diagramPrompts[name]} count={drawableCount(artifact[name])} frozen={frozen} invalid={missing.some(issue => issue.path === name)} sceneData={artifact[name]} />)}</div>
         <DecisionFields artifact={artifact} disabled={disabled} change={change} invalidPaths={missing.map(issue => issue.path)} />
         <p className="small muted">Add your first-pass reasoning in <Link href={`/lab/attempts/${id}?tab=code`}>Investigate code</Link>. It is stored in the existing notes field and remains part of your submitted artifact.</p>
       </>}
@@ -176,15 +181,30 @@ export function Investigation({ attemptId, artifact, challenge, disabled, change
   const [left, setLeft] = useState<VariantId>('credit-first');
   const [right, setRight] = useState<VariantId>('key-only');
   const [fileIndex, setFileIndex] = useState(0);
+  const [search, setSearch] = useState('');
+  const [focusedReference, setFocusedReference] = useState<{ path: string; line: number } | null>(null);
+  const [lineNote, setLineNote] = useState('');
+  const [lineNoteError, setLineNoteError] = useState('');
   const variants = challenge.variants;
   const files = (variant: VariantId) => variants.find(item => item.id === variant)?.files ?? [];
-  const maxFiles = Math.max(files(left).length, files(right).length);
+  const sourcePaths = [...new Set([...files(left), ...files(right)].map(file => file.path))];
+  const selectedPath = sourcePaths[fileIndex] ?? sourcePaths[0] ?? '';
+  const selectedFile = (variant: VariantId) => files(variant).find(file => file.path === selectedPath);
+  const saveLineNote = () => {
+    if (!focusedReference || !lineNote.trim()) return;
+    const entry = `[${focusedReference.path}:${focusedReference.line}] ${lineNote.trim()}`;
+    const comments = [artifact.comments?.trim(), entry].filter(Boolean).join('\n');
+    if (comments.length > 4000) { setLineNoteError('This note would exceed the 4,000 character limit. Shorten it before adding.'); return; }
+    change({ comments }); setLineNote(''); setLineNoteError('');
+  };
   return <>
     <span className="eyebrow">Step 2 / Investigate reviewed source</span><h2>Find where identity and writes meet.</h2>
     <p className="muted">Compare a file at a time. Reading a variant does not select the implementation for evaluation, and no source runs in your browser.</p>
     <div className="investigation-prompts"><strong>Questions to investigate</strong><ul><li>When is the account-scoped key reserved?</li><li>Can a failure after the balance update leave partial effects?</li><li>What should happen when concurrent requests use the same key?</li></ul></div>
-    <div className="compare-controls"><label>First implementation<select aria-label="First comparison implementation" value={left} onChange={event => setLeft(event.target.value as VariantId)}>{variants.map(item => <option key={item.id} value={item.id}>{variantLabel(item.id)} · {item.label}</option>)}</select></label><label>Compare with<select aria-label="Second comparison implementation" value={right} onChange={event => setRight(event.target.value as VariantId)}>{variants.map(item => <option key={item.id} value={item.id}>{variantLabel(item.id)} · {item.label}</option>)}</select></label><label>Source file<select aria-label="Source file" value={fileIndex} onChange={event => setFileIndex(Number(event.target.value))}>{Array.from({ length: maxFiles }, (_, index) => <option key={index} value={index}>{files(left)[index]?.path ?? files(right)[index]?.path ?? `File ${index + 1}`}</option>)}</select></label></div>
-    <div className="source-comparison">{[left, right].map((variant, side) => { const file = files(variant)[fileIndex]; const lines = (file?.source ?? '').split(/\r?\n/); return <section key={side}><div className="code-heading"><strong>{variantLabel(variant)} · {variant}</strong><span>{file?.path ?? 'No corresponding file'}</span></div><pre tabIndex={0} aria-label={`${side === 0 ? 'First' : 'Second'} source ${variantLabel(variant)} · ${file?.path ?? 'no file'}`}><code>{file ? lines.map((line, index) => <span className="source-line" key={index}><span className="source-line-number" aria-hidden="true">{index + 1}</span><span>{line || ' '}</span></span>) : 'No corresponding file.'}</code></pre></section>; })}</div>
+    <div className="compare-controls"><label>First implementation<select aria-label="First comparison implementation" value={left} onChange={event => { setLeft(event.target.value as VariantId); setFileIndex(0); }} >{variants.map(item => <option key={item.id} value={item.id}>{variantLabel(item.id)} · {item.label}</option>)}</select></label><label>Compare with<select aria-label="Second comparison implementation" value={right} onChange={event => { setRight(event.target.value as VariantId); setFileIndex(0); }}>{variants.map(item => <option key={item.id} value={item.id}>{variantLabel(item.id)} · {item.label}</option>)}</select></label><label className="source-search">Search in these files<input aria-label="Search source files" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Find a term or line" /></label></div>
+    <nav className="source-file-tree" aria-label="Reviewed source files">{sourcePaths.map((path, index) => <button type="button" key={path} aria-current={selectedPath === path ? 'page' : undefined} onClick={() => setFileIndex(index)}><span aria-hidden="true">{path.endsWith('.sql') ? 'DB' : 'TS'}</span>{path}</button>)}</nav>
+    <div className="source-comparison">{[left, right].map((variant, side) => { const file = selectedFile(variant); const lines = (file?.source ?? '').split(/\r?\n/).map((line, index) => ({ line, index })).filter(item => !search || item.line.toLowerCase().includes(search.toLowerCase())); return <section key={side}><div className="code-heading"><strong>{variantLabel(variant)} · {variant}</strong><span>{file?.path ?? 'No corresponding file'}</span></div><pre tabIndex={0} aria-label={`${side === 0 ? 'First' : 'Second'} source ${variantLabel(variant)} · ${file?.path ?? 'no file'}`}><code>{file ? lines.length ? lines.map(({ line, index }) => <span className="source-line" key={index}><button type="button" className="source-line-number" aria-label={`Add a note for ${file.path}, line ${index + 1}`} aria-pressed={focusedReference?.path === file.path && focusedReference.line === index + 1} onClick={() => { setFocusedReference({ path: file.path, line: index + 1 }); setLineNoteError(''); }}>{index + 1}</button><span>{line || ' '}</span></span>) : 'No matching lines.' : 'No corresponding file.'}</code></pre></section>; })}</div>
+    <section className="line-note-panel" aria-labelledby="line-note-heading"><div><span className="eyebrow">Line-level note</span><h3 id="line-note-heading">{focusedReference ? `${focusedReference.path}:${focusedReference.line}` : 'Choose a line number to add a note'}</h3></div><label className="field" htmlFor="focused-line-note">Your note<textarea id="focused-line-note" maxLength={1000} disabled={disabled || !focusedReference} value={lineNote} onChange={event => setLineNote(event.target.value)} placeholder="Record a question or observation about this line." /></label><div className="actions"><small className="muted">Notes are saved in your existing investigation notes.</small><button type="button" disabled={disabled || !focusedReference || !lineNote.trim()} onClick={saveLineNote}>Add note</button></div>{lineNoteError && <p className="notice warning" role="alert">{lineNoteError}</p>}</section>
     <label className="field hypothesis-field">Initial hypothesis & investigation notes <span className="muted">Saved in your artifact notes · human review</span><textarea maxLength={4000} disabled={disabled} value={artifact.comments ?? ''} onChange={event => change({ comments: event.target.value })} placeholder="Before choosing a repair, where could the retry apply a second credit? Which disclosed check would help you investigate?" /><small>{artifact.comments?.length ?? 0}/4000</small></label>
     <fieldset id="field-variantId" tabIndex={-1} aria-invalid={invalidPaths.includes('variantId')} className={`repair-selector ${invalidPaths.includes('variantId') ? 'field-invalid' : ''}`} disabled={disabled}><legend>Select the reviewed implementation you want evaluated</legend><p className="muted small">This is an implementation choice, not a code editor. The selected source is preserved in the challenge record; it is not evidence that you authored it.</p><div className="repair-options">{variants.map(item => <label className={artifact.variantId === item.id ? 'selected' : ''} key={item.id}><input type="radio" name="repair" value={item.id} checked={artifact.variantId === item.id} onChange={() => change({ variantId: item.id })} />{variantLabel(item.id)}<small>{item.label} · {artifact.variantId === item.id ? 'Selected for evaluation' : 'Choose this implementation'}</small></label>)}</div></fieldset>
     <details className="scenario-links"><summary>Which disclosed checks examine these questions?</summary>{challenge.testDescriptions.map(test => <p key={test.id}><strong>{test.id}</strong> · {test.description}</p>)}</details>
