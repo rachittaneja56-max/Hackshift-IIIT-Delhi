@@ -18,6 +18,105 @@
     'Segoe UI',
     sans-serif;
 }
+
+/* S12: compact opportunity editorial and engineering chronology. */
+.demo-journey.opportunities-home { max-width: 1320px; }
+.oh-heading { padding: 16px 0 26px; }
+.opportunities-home .oh-heading h1 { font-size: clamp(28px, 3.1vw, 42px); line-height: 1.12; max-width: 800px; margin: 12px 0 14px; }
+.oh-heading > p { color: var(--dj-sub); max-width: 65ch; }
+.oh-feature-grid { display: grid; grid-template-columns: 1.12fr 1fr; border: 1px solid var(--dj-line); border-radius: 18px; overflow: hidden; background: var(--dj-surface); }
+.oh-featured, .oh-profile { padding: 28px; min-width: 0; }
+.oh-featured { background: var(--dj-soft); border-right: 1px solid var(--dj-line); }
+.oh-featured > .dj-heading { margin-bottom: 25px; }
+.demo-journey .oh-featured h2 { font-size: 30px; max-width: 15ch; margin: 9px 0 14px; }
+.oh-featured > .dj-tags { margin: 20px 0 24px; }
+.oh-featured > .button { display: inline-flex; text-decoration: none; }
+.oh-featured > small { display: block; max-width: 48ch; margin-top: 12px; color: var(--dj-sub); }
+.oh-profile > .dj-person { margin: 16px 0 20px; }
+.oh-profile .dj-person h2 { font-size: 21px; margin: 0; }
+.oh-profile .dj-person p { margin: 2px 0 0; color: var(--dj-sub); font-size: 12px; }
+.oh-profile .dj-avatar { background: var(--dj-wash); color: var(--dj-accent); }
+.opportunities-home .oh-mini-timeline { list-style: none; padding: 0 0 0 10px; margin: 0 0 22px; }
+.oh-mini-timeline li { position: relative; border-left: 1px solid var(--dj-line); padding: 0 0 17px 21px; margin: 0; }
+.oh-mini-timeline li::before { content: ''; width: 7px; height: 7px; background: var(--dj-accent); border: 4px solid var(--dj-surface); box-sizing: content-box; border-radius: 50%; position: absolute; left: -8px; top: 2px; }
+.oh-mini-timeline li:last-child { padding-bottom: 0; }
+.oh-mini-timeline span, .oh-mini-timeline strong, .oh-mini-timeline small { display: block; }
+.oh-mini-timeline span { color: var(--dj-sub); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.oh-mini-timeline strong { font-size: 14px; margin: 2px 0; }
+.oh-mini-timeline small { color: var(--dj-sub); font-size: 12px; }
+.oh-story-grid { display: grid; grid-template-columns: 1.12fr 1fr; gap: 44px; padding: 30px 0; }
+.oh-story-grid section { min-width: 0; }
+.oh-story-grid h2 { font-size: 20px; margin: 8px 0 16px; }
+.oh-story-grid blockquote { margin: 0 0 12px; padding: 0 0 0 14px; border-left: 2px solid var(--dj-accent); font-size: 16px; line-height: 1.5; }
+.oh-story-grid section > p { font-size: 13px; color: var(--dj-sub); }
+.oh-evidence-row { display: grid; grid-template-columns: .8fr 1.2fr; gap: 16px; border-bottom: 1px solid var(--dj-line); padding: 9px 0; font-size: 12px; }
+.oh-evidence-row strong { font-weight: 500; }
+.oh-own-evidence { display: flex; align-items: center; justify-content: space-between; gap: 24px; border-top: 1px solid var(--dj-line); padding: 24px 0 10px; }
+.oh-own-evidence h2 { font-size: 20px; margin: 7px 0; }
+.oh-own-evidence p { margin: 0; font-size: 13px; color: var(--dj-sub); }
+.oh-own-evidence .button { flex-shrink: 0; }
+.dj-journey-section { border-top: 1px solid var(--dj-line); padding-top: 27px; margin-top: 28px; scroll-margin-top: 20px; }
+.dj-journey-section > .dj-heading { margin-bottom: 10px; }
+.dj-path { color: var(--dj-sub); font-size: 13px; }
+.dj-path span { padding: 0 9px; color: var(--dj-accent); }
+.dj-history-layout { display: grid; grid-template-columns: minmax(0,1.6fr) minmax(240px,.85fr); gap: 30px; }
+.demo-journey .dj-engineering-timeline { list-style: none; padding: 0; margin: 8px 0; }
+.demo-journey .dj-engineering-timeline > li { display: grid; grid-template-columns: 34px minmax(0,1fr); position: relative; gap: 15px; padding: 0 0 14px; margin: 0; }
+.dj-engineering-timeline > li::before { content: ''; position: absolute; left: 16px; top: 31px; bottom: 0; width: 1px; background: var(--dj-line); }
+.dj-engineering-timeline > li:last-child::before { display: none; }
+.dj-timeline-marker { width: 33px; height: 33px; display: grid; place-items: center; background: var(--dj-surface); border: 1px solid var(--dj-line); border-radius: 50%; font-size: 10px; font-weight: 600; color: var(--dj-sub); }
+.dj-engineering-timeline > li[data-history-type=observation] .dj-timeline-marker { background: var(--dj-wash); color: var(--dj-fail); border-color: var(--dj-fail); }
+.dj-engineering-timeline > li[data-history-type=guidance] .dj-timeline-marker { color: var(--dj-pass); border-color: var(--dj-pass); }
+.dj-event-label { color: var(--dj-sub); font-size: 10px; letter-spacing: .06em; }
+.dj-engineering-timeline h4 { font-size: 14px; margin: 3px 0 5px; }
+.dj-engineering-timeline p { color: var(--dj-sub); font-size: 12px; margin: 0 0 6px; max-width: 70ch; }
+.demo-journey .dj-event-details { border: 0; margin: 0; }
+.demo-journey .dj-event-details > summary { cursor: pointer; font-size: 12px; color: var(--dj-accent); padding: 6px 0; min-height: 36px; }
+.dj-event-details > .dj-materials { margin-top: 10px; }
+.dj-focus-panel { align-self: start; border: 1px solid var(--dj-line); border-radius: 14px; background: var(--dj-surface); padding: 22px; }
+.dj-focus-panel h3 { font-size: 20px; margin: 8px 0 12px; }
+.dj-focus-panel h4 { margin-top: 18px; }
+.dj-focus-panel p, .dj-focus-panel small { font-size: 12px; color: var(--dj-sub); }
+.dj-focus-panel small { display: block; margin-top: 10px; }
+.dj-focus-panel button { margin-top: 18px; }
+.dj-result-callout { display: flex; gap: 15px; align-items: center; padding: 15px 0; border-block: 1px solid var(--dj-line); margin-top: 18px; }
+.dj-result-callout > strong { font-size: 34px; font-weight: 500; letter-spacing: -.05em; }
+.dj-result-callout > span { font-size: 11px; color: var(--dj-sub); }
+.dj-result-callout b { color: var(--dj-fail); font-weight: 500; }
+.dj-shared-journey { padding: 24px 0 5px; border-bottom: 1px solid var(--dj-line); }
+.dj-shared-journey .dj-heading { align-items: start; }
+.dj-shared-journey .dj-engineering-timeline { margin-top: 20px; }
+.dj-discussion { border-left: 2px solid var(--dj-accent); padding: 0 0 0 16px; margin: 23px 0; }
+.dj-discussion p, .dj-discussion small { color: var(--dj-sub); font-size: 12px; }
+.dj-job-detail .dj-job-connections { grid-column: 1 / -1; border-top: 1px solid var(--dj-line); padding-top: 24px; }
+.dj-job-connections > h3 { font-size: 20px; margin: 5px 0 15px; }
+.dj-job-connections > details { border-top: 1px solid var(--dj-line); padding: 13px 0; }
+.dj-job-connections > details > summary { cursor: pointer; font-weight: 550; font-size: 13px; }
+.dj-job-connections > details > p { font-size: 12px; color: var(--dj-sub); margin: 10px 0; }
+.dj-job-connections .dj-related-learning { color: var(--dj-accent); }
+.dj-mentor-context { display: grid; grid-template-columns: 1fr 1fr; padding: 15px 20px; gap: 5px 20px; border: 1px solid var(--dj-line); border-radius: 12px; margin-bottom: 24px; background: var(--dj-soft); }
+.dj-mentor-context p { grid-column: 1 / -1; font-size: 12px; margin: 0; color: var(--dj-sub); }
+.dj-mentor-context small { grid-column: 1 / -1; font-size: 11px; color: var(--dj-sub); }
+@media (max-width: 1000px) {
+  .oh-featured, .oh-profile { padding: 22px; }
+  .oh-story-grid { gap: 26px; }
+  .oh-own-evidence { align-items: start; flex-direction: column; gap: 16px; }
+  .dj-history-layout { grid-template-columns: minmax(0,1fr) 260px; gap: 20px; }
+}
+@media (max-width: 760px) {
+  .oh-heading { padding-top: 4px; }
+  .opportunities-home .oh-heading h1 { font-size: 30px; }
+  .oh-feature-grid, .oh-story-grid, .dj-history-layout { grid-template-columns: minmax(0,1fr); }
+  .oh-featured { border-right: 0; border-bottom: 1px solid var(--dj-line); }
+  .oh-featured h2 { font-size: 28px; }
+  .oh-featured > .dj-heading { flex-wrap: wrap; gap: 12px; }
+  .oh-story-grid { gap: 26px; padding: 26px 0; }
+  .oh-evidence-row { gap: 10px; }
+  .dj-journey-section > .dj-heading, .dj-shared-journey > .dj-heading { flex-wrap: wrap; gap: 10px; }
+  .dj-path span { padding: 0 3px; }
+  .dj-focus-panel { grid-row: 1; }
+  .dj-mentor-context { grid-template-columns: 1fr; }
+}
 .demo-journey {
   max-width: 1440px;
   min-height: calc(100vh - 80px);
