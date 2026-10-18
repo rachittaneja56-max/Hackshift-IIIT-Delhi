@@ -8,7 +8,7 @@ export const primaryNavigation = [
 export type PrimaryNavigationKey = typeof primaryNavigation[number]['key'];
 
 export function activePrimaryNavigation(path: string): PrimaryNavigationKey | undefined {
-  if (path === '/' || path.startsWith('/learn')) return 'learn';
+  if (path.startsWith('/learn')) return 'learn';
   if (path === '/practice' || path === '/lab' || path.startsWith('/lab/')) return 'practice';
   if (path === '/evidence' || path.startsWith('/evidence/')) return 'work';
   if (path === '/opportunities' || path.startsWith('/career/') || path === '/demo/journey') return 'opportunities';

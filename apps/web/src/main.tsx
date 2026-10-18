@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import App from './app/App';
+import LandingEntry from './landing/LandingEntry';
 import './styles.css';
 
 // Native editor fonts are served from the installed, version-matched package.
@@ -17,4 +17,4 @@ if (!rootElement) {
   throw new Error("Missing #root element.");
 }
 
-createRoot(rootElement).render(<StrictMode><App /></StrictMode>);
+createRoot(rootElement).render(<StrictMode><LandingEntry /></StrictMode>);

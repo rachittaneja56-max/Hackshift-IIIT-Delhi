@@ -13,6 +13,7 @@ import { PracticeHome } from '../practice/pages';
 import { EmployerMentorDemo } from '../demo/EmployerMentorDemo';
 import { OpportunitiesHome } from '../demo/OpportunitiesHome';
 import { activePrimaryNavigation, primaryNavigation } from './navigation';
+import { LandingPage } from '../landing/LandingPage';
 function SystemAppearance() {
   useEffect(() => {
     const media = matchMedia('(prefers-color-scheme: dark)');
@@ -64,5 +65,11 @@ function Setup() {
 export default function App() {
   let configured = false;
   try { apiOrigin(import.meta.env.VITE_API_BASE_URL ?? ''); configured = /^pk_(test|live)_/.test(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ?? ''); } catch {}
-  return <ErrorBoundary><Router><SystemAppearance /><a href="#main-content" className="skip-link">Skip to workspace</a>{configured ? <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}><ClerkStatus /></ClerkProvider> : <Setup />}</Router></ErrorBoundary>;
+  return <ErrorBoundary><Router><SystemAppearance /><a href="#main-content" className="skip-link">Skip to content</a><PublicOrPrivate configured={configured} /></Router></ErrorBoundary>;
+}
+
+export function PublicOrPrivate({ configured }: { configured: boolean }) {
+  const { path } = useRouter();
+  if (path === '/') return <LandingPage />;
+  return configured ? <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}><ClerkStatus /></ClerkProvider> : <Setup />;
 }
