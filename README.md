@@ -24,7 +24,7 @@ Neither exercise produces a universal "engineering skill score." A passing test 
 
 | Area | What happens |
 | --- | --- |
-| [Learn](/) | Read the available retry-safe writes lesson and browse the wider engineering curriculum. Additional course drafts are in `content/courses/`. |
+| [Learn](https://hackshift-iiit-delhi.vercel.app/learn) | Read the available retry-safe writes lesson and browse the wider engineering curriculum. Additional course drafts are in `content/courses/`. |
 | [Practice](https://hackshift-iiit-delhi.vercel.app/practice) | Open the architecture/reliability exercise or the separate AI Debugging Lab. |
 | [My Work](https://hackshift-iiit-delhi.vercel.app/evidence) | Resume saved attempts and inspect completed test observations, diagrams, and feedback. Requires sign-in and the API. |
 | [Opportunities](https://hackshift-iiit-delhi.vercel.app/opportunities) | Explore a fictional job and candidate journey, or use the private JD-to-evidence review on your own completed records. |
