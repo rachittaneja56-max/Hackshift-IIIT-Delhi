@@ -7,6 +7,7 @@ import {
   EvidencePicker,
   Tag,
   now,
+  useWorkspaceDraft,
   type Send,
 } from './components';
 
@@ -70,7 +71,7 @@ export function MentorPacketView({ state }: { state: DemoState }) {
             <span className="dj-avatar">MS</span>
             <div>
               <h3>{mentor.name}</h3>
-              <small>Illustrative mentor response.</small>
+              <small>Illustrative mentor response — fictional.</small>
             </div>
           </div>
           <p className="dj-footnote">{response.label}</p>
@@ -129,11 +130,12 @@ export function MentorWorkspace({
   const packet = state.mentor;
   const surface = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
-  const [selected, setSelected] = useState(packet.selected);
-  const [question, setQuestion] = useState(packet.question);
-  const [topic, setTopic] = useState('');
-  const [preview, setPreview] = useState(packet.status === 'packet_prepared');
-  const [mode, setMode] = useState<'prepare' | 'review'>(
+  const [selected, setSelected] = useWorkspaceDraft('mentor-selected', packet.selected);
+  const [question, setQuestion] = useWorkspaceDraft('mentor-question', packet.question);
+  const [topic, setTopic] = useWorkspaceDraft('mentor-topic', '');
+  const [preview, setPreview] = useWorkspaceDraft('mentor-preview', packet.status === 'packet_prepared');
+  const [mode, setMode] = useWorkspaceDraft<'prepare' | 'review'>(
+    'mentor-mode',
     packet.status === 'example_review_available' ? 'review' : 'prepare',
   );
   const prepared =
@@ -175,6 +177,7 @@ export function MentorWorkspace({
           </button>
         </div>
       </div>
+      <div className="dj-mentor-context"><span className="dj-kicker">Continue your engineering journey</span><strong>Retry-safe account credits</strong><p>Current difficulty: concurrent duplicate requests. Choose the HLD/LLD summary, synthetic observation and explanation you want to include.</p><small>Only selected materials enter the mentor preview.</small></div>
       {mode === 'review' ? (
         <MentorPacketView state={state} />
       ) : packet.status === 'example_review_available' ? (

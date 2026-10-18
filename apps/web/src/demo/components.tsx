@@ -1,10 +1,19 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type Dispatch, type SetStateAction } from 'react';
 import { getCandidate, job, type DemoArtifact } from './fixtures';
 import type { DemoAction } from './model';
 
 export type Persona = 'Candidate' | 'Employer' | 'Mentor';
 export type Send = (action: DemoAction, message: string) => boolean;
 export const now = () => new Date().toISOString();
+// Transient draft cache preserves editing across unmounted persona views.
+// It is never persisted as consent or exposed by an employer component.
+export const WorkspaceDraftContext = createContext<Map<string, unknown> | null>(null);
+export function useWorkspaceDraft<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
+  const cache = useContext(WorkspaceDraftContext);
+  const [value, setValue] = useState<T>(() => cache?.has(key) ? cache.get(key) as T : initial);
+  useEffect(() => { cache?.set(key, value); }, [cache, key, value]);
+  return [value, setValue];
+}
 export function Tag({
   children,
   tone = '',

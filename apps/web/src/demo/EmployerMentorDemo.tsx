@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from '../app/router';
 import type { CandidateId } from './fixtures';
 import {
   isShortlisted,
@@ -10,7 +11,7 @@ import {
 import { CandidateApplicationView } from './CandidateWorkspace';
 import { EmployerWorkspace } from './EmployerWorkspace';
 import { MentorWorkspace } from './MentorWorkspace';
-import { Confirmation, type Persona, type Send } from './components';
+import { Confirmation, WorkspaceDraftContext, type Persona, type Send } from './components';
 import './demo.css';
 
 // Preserve these exports for the existing workflow verification entry point.
@@ -28,9 +29,11 @@ function browserStorage() {
 
 /** Synthetic-only experience. No real evidence service, authentication or API dependency. */
 export function EmployerMentorDemo() {
+  const { search } = useRouter();
+  const drafts = useRef(new Map<string, unknown>());
   const [loaded] = useState(() => loadDemoState(browserStorage()));
   const [state, setState] = useState<DemoState>(loaded.state);
-  const [persona, setPersona] = useState<Persona>('Candidate');
+  const [persona, setPersona] = useState<Persona>(() => new URLSearchParams(search).get('view') === 'mentor' ? 'Mentor' : 'Candidate');
   const [selected, setSelected] = useState<CandidateId>(
     loaded.state.applications.ananya.status === 'submitted_demo'
       ? 'ananya'
@@ -203,7 +206,8 @@ export function EmployerMentorDemo() {
           changes.
         </p>
       )}
-      <div key={epoch}>
+      <WorkspaceDraftContext.Provider key={epoch} value={drafts.current}>
+        {persona === 'Candidate' &&
         <section
           id="dj-candidate-workspace"
           aria-label="Candidate workspace"
@@ -216,6 +220,8 @@ export function EmployerMentorDemo() {
             openMentor={() => switchPersona('Mentor')}
           />
         </section>
+        }
+        {persona === 'Employer' &&
         <section
           id="dj-employer-workspace"
           aria-label="Employer workspace"
@@ -230,6 +236,8 @@ export function EmployerMentorDemo() {
             replay={() => setConfirmation('replay')}
           />
         </section>
+        }
+        {persona === 'Mentor' &&
         <section
           id="dj-mentor-workspace"
           aria-label="Mentor workspace"
@@ -237,7 +245,8 @@ export function EmployerMentorDemo() {
         >
           <MentorWorkspace state={state} send={send} />
         </section>
-      </div>
+        }
+      </WorkspaceDraftContext.Provider>
       <footer className="dj-footer">
         <span>Synthetic demo only · no external applications or messages.</span>
         <details>
@@ -275,6 +284,7 @@ export function EmployerMentorDemo() {
                   : 'Demo reset. Published job and seeded applicants restored; Ananya’s consent and all review actions cleared.',
               )
             ) {
+              drafts.current.clear();
               setEpoch((value) => value + 1);
               setPersona(confirmation === 'replay' ? 'Employer' : 'Candidate');
               setSelected('kabir');

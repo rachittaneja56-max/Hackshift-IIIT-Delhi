@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { getArtifacts, getCandidate, job } from './fixtures';
 import type { DemoState } from './model';
+import { isShortlisted } from './model';
+import { CandidateHistory } from './EngineeringTimeline';
+import { CandidateRequirementConnections } from './RequirementConnections';
+import { useRouter } from '../app/router';
 import {
   EvidenceMaterials,
   EvidencePicker,
   JobPosting,
   Tag,
   now,
+  useWorkspaceDraft,
   type Persona,
   type Send,
 } from './components';
@@ -25,10 +30,12 @@ export function CandidateApplicationView({
   const app = state.applications.ananya;
   const surface = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
-  const [selected, setSelected] = useState(app.selected);
-  const [stage, setStage] = useState<
+  const { search } = useRouter();
+  const view = new URLSearchParams(search).get('view');
+  const [selected, setSelected] = useWorkspaceDraft('candidate-selected', app.selected);
+  const [stage, setStage] = useWorkspaceDraft<
     'board' | 'details' | 'evidence' | 'review'
-  >(app.status === 'prepared' ? 'review' : 'board');
+  >('candidate-stage', app.status === 'prepared' ? 'review' : view === 'opportunity' ? 'details' : 'board');
   useEffect(() => {
     if (mounted.current) surface.current?.focus();
     else mounted.current = true;
@@ -66,6 +73,8 @@ export function CandidateApplicationView({
             {app.selected.length} selected materials. Your submitted package is
             frozen.
           </p>
+          <p>{job.title} · Northstar Engineering</p>
+          <span className="dj-tag">{isShortlisted(state, 'ananya') ? 'Shortlisted in this demo.' : 'Submitted in this demo.'}</span>
           <div className="dj-actions">
             <button
               className="dj-primary"
@@ -181,6 +190,7 @@ export function CandidateApplicationView({
                 </button>
                 <small>Choose your exact evidence before sharing.</small>
               </aside>
+              <CandidateRequirementConnections />
             </section>
           ) : stage === 'evidence' ? (
             <section>
@@ -285,6 +295,7 @@ export function CandidateApplicationView({
           )}
         </>
       )}
+      {(app.status === 'submitted_demo' || stage === 'board' || view === 'history') && <CandidateHistory state={state} openMentor={openMentor} />}
     </div>
   );
 }

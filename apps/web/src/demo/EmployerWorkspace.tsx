@@ -21,6 +21,7 @@ import {
   now,
   type Send,
 } from './components';
+import { SharedHistory } from './EngineeringTimeline';
 
 export function RequirementEvidence({
   artifacts,
@@ -193,7 +194,9 @@ export function EmployerProfile({
           </p>
         )}
       </section>
+      <SharedHistory artifacts={packet.artifacts} />
       <RequirementEvidence artifacts={packet.artifacts} />
+      <section className="dj-discussion"><h3>Areas for a technical conversation</h3><p>{failed ? 'Inspect key reservation and transaction boundaries around concurrent requests. The disclosed duplicate credit remains unresolved in this attempt.' : 'Ask about design trade-offs and gaps in the selected materials.'}</p><small>Production experience and independent implementation authorship are not assessed from shared materials.</small></section>
       <details className="dj-disclosure">
         <summary>Open detailed artifacts · {packet.artifacts.length}</summary>
         <EvidenceMaterials artifacts={packet.artifacts} />
