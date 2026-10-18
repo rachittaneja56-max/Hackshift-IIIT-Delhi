@@ -184,17 +184,40 @@ export function EvidencePicker({
   change,
   prefix,
   mentorOnly = false,
+  title = 'Choose exact materials',
 }: {
   selected: string[];
   change: (ids: string[]) => void;
   prefix: string;
   mentorOnly?: boolean;
+  title?: string;
 }) {
   return (
-    <fieldset className="dj-picker">
+    <fieldset
+      className={`dj-picker${mentorOnly ? ' dj-picker--mentor' : ''}`}
+    >
       <legend>
-        Choose exact materials <span>Nothing selected by default</span>
+        {title}
+        {!mentorOnly && <span>Nothing selected by default</span>}
       </legend>
+      {mentorOnly && (
+        <div className="dj-picker-meta">
+          <span aria-live="polite">
+            {selected.length === 0
+              ? 'Nothing selected yet'
+              : `${selected.length} selected`}
+          </span>
+          {selected.length > 0 && (
+            <button
+              className="dj-clear-selection"
+              type="button"
+              onClick={() => change([])}
+            >
+              Clear selection
+            </button>
+          )}
+        </div>
+      )}
       <div className="dj-evidence-grid">
         {getCandidate('ananya')
           .artifacts.filter(
@@ -208,7 +231,11 @@ export function EvidencePicker({
               key={item.id}
             >
               <label htmlFor={`${prefix}-${item.id}`}>
-                <span className="dj-heading">
+                <span
+                  className={
+                    mentorOnly ? 'dj-evidence-card-heading' : 'dj-heading'
+                  }
+                >
                   <span className="dj-kicker">
                     {item.kind === 'tests'
                       ? 'Synthetic assessment'
@@ -216,9 +243,15 @@ export function EvidencePicker({
                         ? 'Design summary'
                         : 'Candidate writing'}
                   </span>
+                  {mentorOnly && (
+                    <span className="dj-evidence-card-choice">
+                      {selected.includes(item.id) ? 'Included' : 'Add'}
+                    </span>
+                  )}
                   <input
                     type="checkbox"
                     id={`${prefix}-${item.id}`}
+                    aria-label={`${selected.includes(item.id) ? 'Remove' : 'Include'} ${artifactTitle(item)}`}
                     checked={selected.includes(item.id)}
                     onChange={() =>
                       change(

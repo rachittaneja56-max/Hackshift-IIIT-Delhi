@@ -94,7 +94,7 @@ function DecisionFields({ artifact, disabled, change, invalidPaths }: { artifact
     { key: 'atomicity', label: 'What commits together?', help: 'Choose whether balance, ledger, operation and replay data form one transaction.', reference: 'T5 · A failure after the balance update rolls back the transaction.', options: [['transaction', 'One transaction'], ['separate_writes', 'Separate writes']] },
     { key: 'payloadConflict', label: 'What if the amount changes?', help: 'Choose what happens when the same account and key arrive with a different amount.', reference: 'T4 · A changed amount with the same account and key is rejected.', options: [['reject', 'Reject the conflict'], ['replay', 'Replay the original']] },
   ] as const;
-  return <fieldset disabled={disabled} className="decisions"><legend>Three design decisions</legend>{fields.map(field => <fieldset className="decision-field" key={field.key} aria-invalid={invalidPaths.includes(`decisions.${field.key}`)}><legend>{field.label}</legend><p>{field.help}</p><div className="decision-options">{field.options.map(([value, label]) => <label key={value}><input type="radio" name={`decision-${field.key}`} value={value} checked={artifact.decisions[field.key] === value} onChange={() => change({ decisions: { ...artifact.decisions, [field.key]: value } })} />{label}</label>)}</div><details><summary>Check reference</summary><p>{field.reference}</p></details></fieldset>)}</fieldset>;
+  return <fieldset disabled={disabled} className="decisions"><legend>Three design decisions</legend>{fields.map(field => <fieldset id={`field-decisions-${field.key}`} tabIndex={-1} className="decision-field" key={field.key} aria-invalid={invalidPaths.includes(`decisions.${field.key}`)}><legend>{field.label}</legend><p>{field.help}</p><div className="decision-options">{field.options.map(([value, label]) => <label key={value}><input type="radio" name={`decision-${field.key}`} value={value} checked={artifact.decisions[field.key] === value} onChange={() => change({ decisions: { ...artifact.decisions, [field.key]: value } })} />{label}</label>)}</div><details><summary>Check reference</summary><p>{field.reference}</p></details></fieldset>)}</fieldset>;
 }
 
 export function AttemptWorkspace({ id, scene }: { id: string; scene?: 'hld' | 'lld' }) {
@@ -105,6 +105,7 @@ export function AttemptWorkspace({ id, scene }: { id: string; scene?: 'hld' | 'l
   const [requirements, showRequirements] = useState(false);
   const [review, setReview] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
+  const [focusTargetId, setFocusTargetId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<Error>();
   const [serverIssues, setServerIssues] = useState<SubmissionIssue[]>([]);
   const reviewRef = useRef<HTMLDialogElement>(null);
@@ -116,13 +117,16 @@ export function AttemptWorkspace({ id, scene }: { id: string; scene?: 'hld' | 'l
   const currentIssues = queue ? [...submissionIssues(queue.local, queue.server.revision), ...serverIssues] : [];
   const missing = [...new Map(currentIssues.map(issue => [issue.path, issue])).values()];
   useEffect(() => {
-    if (review || !showValidation || !missing[0]) return;
-    const requiredTab = ['hld', 'lld'].includes(missing[0].path) || missing[0].path.startsWith('decisions.') ? 'design' : 'code';
+    if (review || !showValidation || !focusTargetId) return;
+    const issue = missing.find(item => item.targetId === focusTargetId);
+    if (!issue) { setFocusTargetId(null); return; }
+    const requiredTab = ['hld', 'lld'].includes(issue.path) || issue.path.startsWith('decisions.') ? 'design' : 'code';
     if (tab !== requiredTab) { navigate(`/lab/attempts/${id}?tab=${requiredTab}`); return; }
-    const target = document.getElementById(missing[0].targetId);
+    const target = document.getElementById(issue.targetId) ?? document.getElementById('submission-errors-title');
     target?.focus({ preventScroll: true });
     target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [review, showValidation, missing[0]?.targetId, tab, navigate, id]);
+    setFocusTargetId(null);
+  }, [review, showValidation, focusTargetId, missing[0]?.targetId, tab, navigate, id]);
   if (state.error) return <main id="main-content" tabIndex={-1} className="page"><ErrorNotice error={state.error} retry={state.reload} /></main>;
   if (!queue || challenge.loading) return <main id="main-content" tabIndex={-1} className="page"><Loading label="Restoring your attempt and challenge…" /></main>;
   if (!challenge.data) return <main id="main-content" tabIndex={-1} className="page"><ErrorNotice error={challenge.error} retry={challenge.reload} /></main>;
@@ -138,7 +142,9 @@ export function AttemptWorkspace({ id, scene }: { id: string; scene?: 'hld' | 'l
     catch (error) {
       if (error instanceof ApiClientError && error.status === 422) {
         const issues = serverSubmissionIssues(error.details?.issues);
-        setServerIssues(issues.length ? issues : [submissionIssue({ path: '', message: error.message })]);
+        const actionable = issues.length ? issues : [submissionIssue({ path: '', message: error.message })];
+        setServerIssues(actionable);
+        setFocusTargetId(actionable[0]?.targetId ?? null);
         setShowValidation(true); setReview(false);
         return;
       }
@@ -147,8 +153,19 @@ export function AttemptWorkspace({ id, scene }: { id: string; scene?: 'hld' | 'l
   };
   const beginReview = () => {
     setShowValidation(true);
-    if (missing.length) return;
+    if (missing.length) { setFocusTargetId(missing[0].targetId); return; }
     setReview(true);
+  };
+  const focusIssue = (issue: SubmissionIssue) => {
+    const requiredTab = ['hld', 'lld'].includes(issue.path) || issue.path.startsWith('decisions.') ? 'design' : 'code';
+    if (tab !== requiredTab) {
+      setFocusTargetId(issue.targetId);
+      navigate(`/lab/attempts/${id}?tab=${requiredTab}`);
+      return;
+    }
+    const target = document.getElementById(issue.targetId) ?? document.getElementById('submission-errors-title');
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
   const banners = <>{queue.submissionUnknown && <div className="notice warning"><strong>Submission status is uncertain.</strong><p>Editing is paused. Check this existing attempt before taking another action.</p><button onClick={() => void queue.checkSubmission()}>Check submission status</button></div>}{state.storageError && <div className="notice warning" role="alert">{state.storageError}<RecoveryDownload queue={queue} /></div>}{state.recovery && <div className="notice warning"><strong>A device copy has unsaved work.</strong><p>Server revision {queue.server.revision}; device base revision {state.recovery.baseRevision}. Restore it to compare before writing.</p><div className="actions"><button onClick={state.recover}>Restore device copy</button><button onClick={state.discardRecovery}>Use server draft</button></div></div>}<Conflicts queue={queue} /><ErrorNotice error={queue.error} />{queue.error && <RecoveryDownload queue={queue} />}</>;
 
@@ -166,7 +183,7 @@ export function AttemptWorkspace({ id, scene }: { id: string; scene?: 'hld' | 'l
   return <main id="main-content" tabIndex={-1} className="workspace">
     <div className="attempt-header"><div><span className="eyebrow">Architecture &amp; Reliability Lab</span><h1 tabIndex={-1}>{challenge.data.title}</h1><details className="attempt-details"><summary>Attempt details</summary><span>Attempt {shortId(id)} · challenge version {challenge.data.version}</span></details></div><div className="attempt-state"><Badge>{queue.server.status === 'draft' ? 'In progress' : queue.server.status === 'queued' || queue.server.status === 'running' ? 'Evaluating' : queue.server.status === 'execution_error' ? 'Evaluation needs attention' : 'Completed'}</Badge><SaveStatus queue={queue} /></div></div>
     {banners}<WorkflowSteps active={review ? 'review' : tab} submitted={queue.server.status !== 'draft'} canReview={!disabled && queue.state !== 'Saving'} onReview={beginReview} id={id} />
-    {showValidation && missing.length > 0 && <div className="notice warning submission-errors" role="alert" aria-labelledby="submission-errors-title"><h2 id="submission-errors-title">Complete these fields before submitting.</h2><ul>{missing.map(issue => <li key={issue.path}><a href={`#${issue.targetId}`}>{issue.message}</a></li>)}</ul><details><summary>Advanced: validation details</summary><ul>{missing.map(issue => <li key={issue.path}><code>{issue.path || 'submission'}</code> · {issue.diagnostic}</li>)}</ul></details></div>}
+    {showValidation && missing.length > 0 && <div className="notice warning submission-errors" role="alert" aria-labelledby="submission-errors-title"><h2 id="submission-errors-title" tabIndex={-1}>A few details need attention</h2><p>Fix these items, then review your submission again.</p><ul>{missing.map(issue => <li key={issue.path}><a href={`#${issue.targetId}`} onClick={event => { event.preventDefault(); focusIssue(issue); }}>{issue.message}</a></li>)}</ul><details><summary>Advanced: validation details</summary><ul>{missing.map(issue => <li key={issue.path}><code>{issue.path || 'submission'}</code> · {issue.diagnostic}</li>)}</ul></details></div>}
     <div className="lab-grid"><aside className="requirements"><Requirements challenge={challenge.data} /></aside><section className="lab-work">
       {tab === 'evidence' ? <EvaluationPanel attempt={queue.server} /> : tab === 'code' ? <Investigation attemptId={id} artifact={artifact} challenge={challenge.data} disabled={disabled} change={change} invalidPaths={missing.map(issue => issue.path)} /> : <>
         <div className="section-heading"><div><span className="eyebrow">Step 1 / Design the behavior</span><h2>Show where the request goes and what must commit.</h2></div><Badge>Saved as a human-review artifact</Badge></div>
@@ -184,33 +201,57 @@ export function AttemptWorkspace({ id, scene }: { id: string; scene?: 'hld' | 'l
 export function Investigation({ attemptId, artifact, challenge, disabled, change, invalidPaths = [] }: { attemptId: string; artifact: Artifact; challenge: ChallengeDto; disabled: boolean; change: (update: Partial<Artifact>) => void; invalidPaths?: string[] }) {
   const [left, setLeft] = useState<VariantId>('credit-first');
   const [right, setRight] = useState<VariantId>('key-only');
-  const [fileIndex, setFileIndex] = useState(0);
+  const [selectedSourceKey, setSelectedSourceKey] = useState('implementation');
   const [search, setSearch] = useState('');
-  const [focusedReference, setFocusedReference] = useState<{ path: string; line: number } | null>(null);
+  const [focusedReference, setFocusedReference] = useState<{ variant: VariantId; path: string; line: number } | null>(null);
   const [lineNote, setLineNote] = useState('');
   const [lineNoteError, setLineNoteError] = useState('');
   const variants = challenge.variants;
   const files = (variant: VariantId) => variants.find(item => item.id === variant)?.files ?? [];
-  const sourcePaths = [...new Set([...files(left), ...files(right)].map(file => file.path))];
-  const selectedPath = sourcePaths[fileIndex] ?? sourcePaths[0] ?? '';
-  const selectedFile = (variant: VariantId) => files(variant).find(file => file.path === selectedPath);
+  const primaryFile = (variant: VariantId) => files(variant).find(file => file.path.split('/').at(-1) === `${variant}.ts`) ?? files(variant)[0];
+  const primaryPaths = new Set([primaryFile(left)?.path, primaryFile(right)?.path]);
+  const companionPaths = [...new Set([...files(left), ...files(right)].map(file => file.path))].filter(path => !primaryPaths.has(path));
+  const sourceOptions = [
+    { key: 'implementation', label: 'Implementation logic', leftFile: primaryFile(left), rightFile: primaryFile(right) },
+    ...companionPaths.map(path => ({
+      key: path,
+      label: path.endsWith('/shared.ts') || path === 'shared.ts' ? 'Shared database helpers'
+        : path.endsWith('/types.ts') || path === 'types.ts' ? 'Request and response types'
+          : path.split('/').at(-1) ?? path,
+      leftFile: files(left).find(file => file.path === path),
+      rightFile: files(right).find(file => file.path === path),
+    })),
+  ];
+  const selectedSource = sourceOptions.find(source => source.key === selectedSourceKey) ?? sourceOptions[0];
+  const visibleLines = (file: { source: string } | undefined) => (file?.source ?? '').split(/\r?\n/)
+    .map((line, index) => ({ line, index }))
+    .filter(item => !search || item.line.toLowerCase().includes(search.toLowerCase()));
   const saveLineNote = () => {
     if (!focusedReference || !lineNote.trim()) return;
-    const entry = `[${focusedReference.path}:${focusedReference.line}] ${lineNote.trim()}`;
+    const entry = `[${variantLabel(focusedReference.variant)} · ${focusedReference.path}:${focusedReference.line}] ${lineNote.trim()}`;
     const comments = [artifact.comments?.trim(), entry].filter(Boolean).join('\n');
     if (comments.length > 4000) { setLineNoteError('This note would exceed the 4,000 character limit. Shorten it before adding.'); return; }
     change({ comments }); setLineNote(''); setLineNoteError('');
   };
+  const testsFor = (ids: string[]) => challenge.testDescriptions.filter(test => ids.includes(test.id));
   return <>
-    <span className="eyebrow">Step 2 / Investigate reviewed source</span><h2>Find where identity and writes meet.</h2>
-    <p className="muted">Compare a file at a time. Reading a variant does not select the implementation for evaluation, and no source runs in your browser.</p>
-    <div className="investigation-prompts"><strong>Questions to investigate</strong><ul><li>When is the account-scoped key reserved?</li><li>Can a failure after the balance update leave partial effects?</li><li>What should happen when concurrent requests use the same key?</li></ul></div>
-    <div className="compare-controls"><label>First implementation<select aria-label="First comparison implementation" value={left} onChange={event => { setLeft(event.target.value as VariantId); setFileIndex(0); }} >{variants.map(item => <option key={item.id} value={item.id}>{variantLabel(item.id)} · {item.label}</option>)}</select></label><label>Compare with<select aria-label="Second comparison implementation" value={right} onChange={event => { setRight(event.target.value as VariantId); setFileIndex(0); }}>{variants.map(item => <option key={item.id} value={item.id}>{variantLabel(item.id)} · {item.label}</option>)}</select></label><label className="source-search">Search in these files<input aria-label="Search source files" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Find a term or line" /></label></div>
-    <nav className="source-file-tree" aria-label="Reviewed source files">{sourcePaths.map((path, index) => <button type="button" key={path} aria-current={selectedPath === path ? 'page' : undefined} onClick={() => setFileIndex(index)}><span aria-hidden="true">{path.endsWith('.sql') ? 'DB' : 'TS'}</span>{path}</button>)}</nav>
-    <div className="source-comparison">{[left, right].map((variant, side) => { const file = selectedFile(variant); const lines = (file?.source ?? '').split(/\r?\n/).map((line, index) => ({ line, index })).filter(item => !search || item.line.toLowerCase().includes(search.toLowerCase())); return <section key={side}><div className="code-heading"><strong>{variantLabel(variant)} · {variant}</strong><span>{file?.path ?? 'No corresponding file'}</span></div><pre tabIndex={0} aria-label={`${side === 0 ? 'First' : 'Second'} source ${variantLabel(variant)} · ${file?.path ?? 'no file'}`}><code>{file ? lines.length ? lines.map(({ line, index }) => <span className="source-line" key={index}><button type="button" className="source-line-number" aria-label={`Add a note for ${file.path}, line ${index + 1}`} aria-pressed={focusedReference?.path === file.path && focusedReference.line === index + 1} onClick={() => { setFocusedReference({ path: file.path, line: index + 1 }); setLineNoteError(''); }}>{index + 1}</button><span>{line || ' '}</span></span>) : 'No matching lines.' : 'No corresponding file.'}</code></pre></section>; })}</div>
-    <section className="line-note-panel" aria-labelledby="line-note-heading"><div><span className="eyebrow">Line-level note</span><h3 id="line-note-heading">{focusedReference ? `${focusedReference.path}:${focusedReference.line}` : 'Choose a line number to add a note'}</h3></div><label className="field" htmlFor="focused-line-note">Your note<textarea id="focused-line-note" maxLength={1000} disabled={disabled || !focusedReference} value={lineNote} onChange={event => setLineNote(event.target.value)} placeholder="Record a question or observation about this line." /></label><div className="actions"><small className="muted">Notes are saved in your existing investigation notes.</small><button type="button" disabled={disabled || !focusedReference || !lineNote.trim()} onClick={saveLineNote}>Add note</button></div>{lineNoteError && <p className="notice warning" role="alert">{lineNoteError}</p>}</section>
-    <label className="field hypothesis-field">Initial hypothesis & investigation notes <span className="muted">Saved in your artifact notes · human review</span><textarea maxLength={4000} disabled={disabled} value={artifact.comments ?? ''} onChange={event => change({ comments: event.target.value })} placeholder="Before choosing a repair, where could the retry apply a second credit? Which disclosed check would help you investigate?" /><small>{artifact.comments?.length ?? 0}/4000</small></label>
-    <fieldset id="field-variantId" tabIndex={-1} aria-invalid={invalidPaths.includes('variantId')} className={`repair-selector ${invalidPaths.includes('variantId') ? 'field-invalid' : ''}`} disabled={disabled}><legend>Select the reviewed implementation you want evaluated</legend><p className="muted small">This is an implementation choice, not a code editor. The selected source is preserved in the challenge record; it is not evidence that you authored it.</p><div className="repair-options">{variants.map(item => <label className={artifact.variantId === item.id ? 'selected' : ''} key={item.id}><input type="radio" name="repair" value={item.id} checked={artifact.variantId === item.id} onChange={() => change({ variantId: item.id })} />{variantLabel(item.id)}<small>{item.label} · {artifact.variantId === item.id ? 'Selected for evaluation' : 'Choose this implementation'}</small></label>)}</div></fieldset>
+    <header className="investigation-heading"><div><span className="eyebrow">Step 2 / Investigate the reviewed source</span><h2>Trace the retry before choosing a repair.</h2><p className="muted">Start with the implementation files, then compare shared database behavior. Your comparison does not change the implementation selected for evaluation.</p></div><Badge>Evaluation choice · {variantLabel(artifact.variantId)}</Badge></header>
+    <section className="investigation-prompts" aria-label="Investigation questions"><h3>What to trace</h3><ol>
+      <li><strong>Replay boundary</strong><span>Where does a duplicate request return the original response?</span><small>Disclosed checks · {testsFor(['T2', 'T3']).map(test => test.id).join(' · ') || 'T2 · T3'}</small></li>
+      <li><strong>Failure window</strong><span>Can a failure after the balance write leave partial effects?</span><small>Disclosed check · {testsFor(['T5']).map(test => test.id).join(' · ') || 'T5'}</small></li>
+      <li><strong>Key identity</strong><span>How do changed amounts and different accounts behave?</span><small>Disclosed checks · {testsFor(['T4', 'T6']).map(test => test.id).join(' · ') || 'T4 · T6'}</small></li>
+    </ol></section>
+    <div className="compare-controls"><label>First implementation<select aria-label="First comparison implementation" value={left} onChange={event => { setLeft(event.target.value as VariantId); setSelectedSourceKey('implementation'); }} >{variants.map(item => <option key={item.id} value={item.id}>{variantLabel(item.id)} · {item.label}</option>)}</select></label><label>Compare with<select aria-label="Second comparison implementation" value={right} onChange={event => { setRight(event.target.value as VariantId); setSelectedSourceKey('implementation'); }}>{variants.map(item => <option key={item.id} value={item.id}>{variantLabel(item.id)} · {item.label}</option>)}</select></label><label className="source-search">Search selected files<input aria-label="Search source files" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Find a term or line" /></label></div>
+    <nav className="source-file-tree" aria-label="Reviewed source files">{sourceOptions.map(source => <button type="button" key={source.key} aria-current={selectedSource?.key === source.key ? 'page' : undefined} onClick={() => setSelectedSourceKey(source.key)}><span aria-hidden="true">TS</span><span className="source-file-label"><strong>{source.label}</strong><small>{[source.leftFile?.path, source.rightFile?.path].filter(Boolean).join(' ↔ ')}</small></span></button>)}</nav>
+    <div className="source-match-count" role="status" aria-live="polite">{search ? `${visibleLines(selectedSource?.leftFile).length} matches in ${variantLabel(left)} · ${visibleLines(selectedSource?.rightFile).length} matches in ${variantLabel(right)}` : `${selectedSource?.label ?? 'Source'} · ${selectedSource?.leftFile?.source.split(/\r?\n/).length ?? 0} / ${selectedSource?.rightFile?.source.split(/\r?\n/).length ?? 0} lines`}</div>
+    <div className="source-comparison">{([left, right] as const).map((variant, side) => {
+      const file = side === 0 ? selectedSource?.leftFile : selectedSource?.rightFile;
+      const lines = visibleLines(file);
+      return <section key={side} aria-label={`${variantLabel(variant)} reviewed source`}><div className="code-heading"><strong>{variantLabel(variant)} · {variant}</strong><span>{file?.path ?? 'Not supplied for this variant'}</span></div><pre tabIndex={0} aria-label={`${side === 0 ? 'First' : 'Second'} source ${variantLabel(variant)} · ${file?.path ?? 'no file'}`}><code>{file ? lines.length ? lines.map(({ line, index }) => <span className="source-line" key={index}><button type="button" className="source-line-number" aria-label={`Add a note for ${variantLabel(variant)}, ${file.path}, line ${index + 1}`} aria-pressed={focusedReference?.variant === variant && focusedReference.path === file.path && focusedReference.line === index + 1} onClick={() => { setFocusedReference({ variant, path: file.path, line: index + 1 }); setLineNoteError(''); }}>{index + 1}</button><span>{line || ' '}</span></span>) : `No lines match “${search}”.` : 'This variant does not supply a corresponding file.'}</code></pre></section>;
+    })}</div>
+    <section className="line-note-panel" aria-labelledby="line-note-heading"><div><span className="eyebrow">Line-level note</span><h3 id="line-note-heading">{focusedReference ? `${variantLabel(focusedReference.variant)} · ${focusedReference.path}:${focusedReference.line}` : 'Select a source line to add a note'}</h3></div><label className="field" htmlFor="focused-line-note">Your note<textarea id="focused-line-note" maxLength={1000} disabled={disabled || !focusedReference} value={lineNote} onChange={event => setLineNote(event.target.value)} placeholder="Record what this line does, or what you want to verify." /></label><div className="actions"><small className="muted">Notes are saved with your investigation notes.</small><button type="button" disabled={disabled || !focusedReference || !lineNote.trim()} onClick={saveLineNote}>Add note</button></div>{lineNoteError && <p className="notice warning" role="alert">{lineNoteError}</p>}</section>
+    <label className="field hypothesis-field">Initial hypothesis &amp; investigation notes <span className="muted">Autosaved with this attempt · human review</span><textarea maxLength={4000} disabled={disabled} value={artifact.comments ?? ''} onChange={event => change({ comments: event.target.value })} placeholder="Before choosing a repair, describe where the retry could apply a second credit and what evidence in the source supports your hypothesis." /><small>{artifact.comments?.length ?? 0}/4000</small></label>
+    <fieldset id="field-variantId" tabIndex={-1} aria-invalid={invalidPaths.includes('variantId')} className={`repair-selector ${invalidPaths.includes('variantId') ? 'field-invalid' : ''}`} disabled={disabled}><legend>Select the reviewed implementation you want evaluated</legend><p className="muted small">This choice runs the selected reviewed source against the disclosed PostgreSQL checks. It is separate from the side-by-side comparison.</p><div className="repair-options">{variants.map(item => <label className={artifact.variantId === item.id ? 'selected' : ''} key={item.id}><input type="radio" name="repair" value={item.id} checked={artifact.variantId === item.id} onChange={() => change({ variantId: item.id })} />{variantLabel(item.id)}<small>{item.label} · {artifact.variantId === item.id ? 'Selected for evaluation' : 'Choose this implementation'}</small></label>)}</div></fieldset>
     <details className="scenario-links"><summary>Which disclosed checks examine these questions?</summary>{challenge.testDescriptions.map(test => <p key={test.id}><strong>{test.id}</strong> · {test.description}</p>)}</details>
     <div className="reasoning-grid"><section><span className="eyebrow">Reviewed prompt · {challenge.faultyAiSuggestion.source}</span><h3>{challenge.faultyAiSuggestion.title}</h3><blockquote>{challenge.faultyAiSuggestion.text}</blockquote><label className="field" htmlFor="field-aiCritique">Your critique <span className="muted">Saved for human review</span><textarea id="field-aiCritique" aria-invalid={invalidPaths.includes('aiCritique')} maxLength={1200} disabled={disabled} value={artifact.aiCritique ?? ''} onChange={event => change({ aiCritique: event.target.value })} placeholder="Which claim needs scrutiny? Describe a failure window and its effect." /><small>{artifact.aiCritique?.length ?? 0}/1200</small></label></section><section><span className="eyebrow">Your engineering judgment</span><h3>Why did you choose this repair?</h3><p>Connect the selected implementation to your design decisions, retry behavior and transaction boundary.</p><label className="field" htmlFor="field-repairJustification">Repair justification <span className="muted">Self-reported reasoning</span><textarea id="field-repairJustification" aria-invalid={invalidPaths.includes('repairJustification')} maxLength={1200} disabled={disabled} value={artifact.repairJustification ?? ''} onChange={event => change({ repairJustification: event.target.value })} placeholder="Explain the behavior you expect and what these tests cannot establish." /><small>{artifact.repairJustification?.length ?? 0}/1200</small></label></section></div>
     <Link className="text-action" href={`/lab/attempts/${attemptId}?tab=design`}>Return to design and check both saved scenes →</Link>

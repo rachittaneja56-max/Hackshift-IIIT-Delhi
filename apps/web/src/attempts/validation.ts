@@ -23,7 +23,15 @@ export function submissionIssue(input: SubmissionIssueInput): SubmissionIssue {
   const rawMessage = typeof input.message === 'string' ? input.message : 'The server rejected this value.';
   const scene = path === 'hld' || path === 'lld';
   const message = helpByPath[path] ?? (scene
-    ? /nondeleted drawable/i.test(rawMessage) ? `Add at least one element to the ${path.toUpperCase()} diagram.` : 'Review the saved diagram; it contains unsupported elements or exceeds the size limit.'
+    ? /nondeleted drawable/i.test(rawMessage)
+      ? `${path.toUpperCase()} diagram: Add at least one element.`
+      : /1 mib|request limit/i.test(rawMessage)
+        ? `${path.toUpperCase()} diagram: Reduce drawing detail to fit the submission size limit.`
+        : /200 elements/i.test(rawMessage)
+          ? `${path.toUpperCase()} diagram: Keep the drawing to 200 elements or fewer.`
+          : /unsupported element|linked elements/i.test(rawMessage)
+            ? `${path.toUpperCase()} diagram: Remove unsupported or linked elements.`
+            : `${path.toUpperCase()} diagram: Review unsupported elements or drawing size.`
     : 'Review this field and try again.');
   const targetId = path ? `field-${path.replaceAll('.', '-')}` : 'review-title';
   return { path, message, diagnostic: rawMessage, targetId };

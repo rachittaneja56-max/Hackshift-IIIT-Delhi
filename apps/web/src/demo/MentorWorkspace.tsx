@@ -132,7 +132,10 @@ export function MentorWorkspace({
   const mounted = useRef(false);
   const [selected, setSelected] = useWorkspaceDraft('mentor-selected', packet.selected);
   const [question, setQuestion] = useWorkspaceDraft('mentor-question', packet.question);
-  const [topic, setTopic] = useWorkspaceDraft('mentor-topic', '');
+  const [topic, setTopic] = useWorkspaceDraft(
+    'mentor-topic',
+    topics.find(([, suggested]) => suggested === packet.question)?.[0] ?? '',
+  );
   const [preview, setPreview] = useWorkspaceDraft('mentor-preview', packet.status === 'packet_prepared');
   const [mode, setMode] = useWorkspaceDraft<'prepare' | 'review'>(
     'mentor-mode',
@@ -177,7 +180,29 @@ export function MentorWorkspace({
           </button>
         </div>
       </div>
-      <div className="dj-mentor-context"><span className="dj-kicker">Continue your engineering journey</span><strong>Retry-safe account credits</strong><p>Current difficulty: concurrent duplicate requests. Choose the HLD/LLD summary, synthetic observation and explanation you want to include.</p><small>Only selected materials enter the mentor preview.</small></div>
+      <aside className="dj-mentor-context" aria-label="Current project context">
+        <div className="dj-mentor-project">
+          <span className="dj-kicker">Current project</span>
+          <strong>Retry-safe account credits</strong>
+          <span className="dj-project-focus">
+            Current focus <span aria-hidden="true">·</span> Concurrent
+            duplicate requests
+          </span>
+        </div>
+        <div className="dj-mentor-context-note">
+          <span className="dj-context-mark" aria-hidden="true">
+            ↗
+          </span>
+          <div>
+            <strong>Bring the right context</strong>
+            <p>
+              Choose only the design notes or observations that help explain
+              your question.
+            </p>
+            <small>Only your selections appear in the preview.</small>
+          </div>
+        </div>
+      </aside>
       {mode === 'review' ? (
         <MentorPacketView state={state} />
       ) : packet.status === 'example_review_available' ? (
@@ -259,19 +284,19 @@ export function MentorWorkspace({
         </section>
       ) : (
         <section>
-          <div className="dj-section-heading">
-            <span className="dj-kicker">
-              Help without starting from scratch
-            </span>
+          <div className="dj-section-heading dj-mentor-intro">
+            <span className="dj-kicker">01 · Your question</span>
             <h2>What would you like help with?</h2>
-            <p>
-              Bring the question and the exact engineering context together.
-            </p>
+            <p>Start with a prompt or write the question in your own words.</p>
+          </div>
+          <div className="dj-prompt-label">
+            <span>Question starters</span>
+            <small>Choose one to add it to your draft.</small>
           </div>
           <div
             className="dj-topic-chips"
             role="group"
-            aria-label="Question topics"
+            aria-label="Question starters"
           >
             {topics.map(([name, suggested]) => (
               <button
@@ -287,24 +312,52 @@ export function MentorWorkspace({
             ))}
           </div>
           <label className="dj-field dj-question">
-            Your technical question
+            <span className="dj-question-label">
+              <span>Your technical question</span>
+              <span className="dj-question-count">{question.length}/1000</span>
+            </span>
             <textarea
+              aria-describedby="mentor-question-help"
+              placeholder="Describe the decision, what you tried, and where you’re stuck."
               maxLength={1000}
               value={question}
-              onChange={(event) => setQuestion(event.target.value)}
+              onChange={(event) => {
+                setQuestion(event.target.value);
+                setTopic('');
+              }}
             />
+            <small id="mentor-question-help">
+              A specific question helps the mentor respond to the part you’re
+              working through.
+            </small>
           </label>
+          <div className="dj-section-heading dj-mentor-evidence-heading">
+            <span className="dj-kicker">02 · Add context</span>
+            <p>
+              Choose the design notes or observations that will help Mira
+              understand your question.
+            </p>
+          </div>
           <EvidencePicker
             prefix="mentor"
             selected={selected}
             change={setSelected}
             mentorOnly
+            title="Materials to include"
           />
           <div className="dj-action-footer">
-            <span className="dj-muted">
-              {selected.length} context materials selected · separate sharing
-              consent
-            </span>
+            <div className="dj-mentor-next-step">
+              <span className="dj-next-label">
+                {!question.trim()
+                  ? 'Add a question to continue.'
+                  : selected.length === 0
+                    ? 'Choose context to continue.'
+                    : 'Ready to preview'}
+              </span>
+              <small>
+                Review the exact packet and confirm consent before sharing.
+              </small>
+            </div>
             <button
               className="dj-primary"
               disabled={!selected.length || !question.trim()}
