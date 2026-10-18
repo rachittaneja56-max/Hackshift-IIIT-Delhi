@@ -125,3 +125,39 @@ test('S10: Opportunities links to a distinct fictional demo and the route keeps 
   assert.match(route, /no external applications or messages/);
   assert.match(header, /<a(?=[^>]*href="\/opportunities")(?=[^>]*aria-current="page")[^>]*>Opportunities/);
 });
+
+test('S12: Opportunities renders the new landing while the bookmarked real Career tool stays owner-scoped', async () => {
+  const { AppRoutes } = await server.ssrLoadModule('/src/app/App.tsx');
+  const { RouteContext } = await server.ssrLoadModule('/src/app/router.tsx');
+  const { ApiContext } = await server.ssrLoadModule('/src/app/context.tsx');
+  const route = path => createElement(RouteContext.Provider, { value: { path, search: '', navigate() {} } }, createElement(AppRoutes));
+  const home = renderToStaticMarkup(route('/opportunities'));
+  assert.match(home, /Find opportunities where/);
+  assert.match(home, /Northstar Engineering/);
+  assert.match(home, /Junior Backend Engineer/);
+  assert.match(home, /Ananya Mehta/);
+  assert.match(home, /6\/7 synthetic checks passed/);
+  assert.match(home, /Concurrent-retry case failed/);
+  assert.match(home, /href="\/career\/preview"/);
+  assert.match(home, /href="\/demo\/journey\?view=opportunity"/);
+  assert.doesNotMatch(home, /<textarea|Job description input/);
+  let calls = 0;
+  const actual = renderToStaticMarkup(createElement(ApiContext.Provider, { value: { userId: 'owned-user', api: { request() { calls++; throw Error('No API requests during SSR'); } } } }, route('/career/preview')));
+  assert.match(actual, /<textarea/);
+  assert.match(actual, /job description/i);
+  assert.doesNotMatch(actual, /Ananya Mehta|a-tests|a-hld/);
+  assert.equal(calls, 0);
+});
+
+test('S12: candidate can explore requirement/history relationships before choosing evidence', async () => {
+  const { CandidateRequirementConnections } = await server.ssrLoadModule('/src/demo/RequirementConnections.tsx');
+  const html = renderToStaticMarkup(createElement(CandidateRequirementConnections));
+  assert.match(html, /Related learning: Computer Networks/);
+  assert.match(html, /Related learning: Database Internals/);
+  assert.match(html, /Synthetic concurrency check failed/);
+  assert.match(html, /representative HLD and LLD/);
+  assert.match(html, /Candidate writing/);
+  assert.match(html, /unknown/);
+  assert.match(html, /Nothing here is shared automatically/);
+  assert.doesNotMatch(html, /type="checkbox"|\d+%/);
+});

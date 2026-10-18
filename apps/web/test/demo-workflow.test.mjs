@@ -10,6 +10,8 @@ after(() => server.close());
 const model = await server.ssrLoadModule('/src/demo/model.ts');
 const fixtures = await server.ssrLoadModule('/src/demo/fixtures.ts');
 const ui = await server.ssrLoadModule('/src/demo/EmployerMentorDemo.tsx');
+const history = await server.ssrLoadModule('/src/demo/history.ts');
+const timeline = await server.ssrLoadModule('/src/demo/EngineeringTimeline.tsx');
 const { initialDemoState, transition, employerApplication, requirementMapping, mentorPacket, exampleResponse, isShortlisted, loadDemoState, saveDemoState, demoStateSchema, STORAGE_KEY } = model;
 const render = (Component, props) => renderToStaticMarkup(createElement(Component, props));
 const at = '2026-10-18T05:00:00.000Z';
@@ -263,4 +265,102 @@ test('S11 comparison preserves failures, selected-only artifact links and no agg
   const html = render(ui.EmployerProfile, { state: submitted(['a-tests']), id: 'ananya' });
   assert.match(html, /T3 · failed/);
   assert.doesNotMatch(html, /\d+%|match score|skill score|a-hld|a-lld|a-profile/);
+});
+
+test('S12 history validates every origin and uses only canonical Ananya artifact references without fake activity dates', () => {
+  const events = history.candidateHistory(initialDemoState());
+  assert.equal(new Set(events.map(item => item.id)).size, events.length);
+  assert.ok(events.some(item => item.type === 'learning'));
+  assert.ok(events.some(item => item.relatedArtifactIds?.includes('a-hld')));
+  assert.ok(events.some(item => item.relatedArtifactIds?.includes('a-lld')));
+  assert.ok(events.some(item => item.relatedArtifactIds?.includes('a-reasoning')));
+  for (const event of events) {
+    assert.equal(history.historyEventSchema.safeParse(event).success, true);
+    assert.equal('timestamp' in event, false);
+    for (const id of event.relatedArtifactIds ?? []) assert.ok(fixtures.getArtifacts('ananya', [id]).length);
+  }
+  assert.equal(history.historyEventSchema.safeParse({ ...events[0], origin: 'synthetic-evaluation' }).success, false);
+  assert.equal(history.historyEventSchema.safeParse({ ...events[0], relatedArtifactIds: ['b-tests'] }).success, false);
+  assert.equal(history.historyEventSchema.safeParse({ ...events[0], timestamp: at }).success, false);
+});
+
+test('S12 mentor review reveals a private next action only after consented transition, preserving observations and frozen application', () => {
+  let state = submitted(['a-hld', 'a-tests']);
+  const packet = structuredClone(employerApplication(state, 'ananya'));
+  const originalChecks = structuredClone(fixtures.getArtifacts('ananya', ['a-tests'])[0].checks);
+  assert.equal(history.candidateHistory(state).some(item => item.type === 'guidance'), false);
+  state = transition(state, { type: 'prepare_mentor', selected: ['a-lld', 'a-failure'], question: 'How should two requests reserve the same key?' });
+  assert.equal(history.candidateHistory(state).some(item => item.type === 'guidance'), false);
+  assert.throws(() => transition(state, { type: 'request_mentor', at }), /consent/);
+  state = transition(state, { type: 'mentor_consent', consent: true });
+  state = transition(state, { type: 'request_mentor', at });
+  const guidance = history.candidateHistory(state).find(item => item.type === 'guidance');
+  assert.equal(guidance.title, 'Mentor example reviewed');
+  assert.match(guidance.summary, /transaction boundary/);
+  assert.deepEqual(guidance.relatedArtifactIds, ['a-lld', 'a-failure']);
+  assert.deepEqual(fixtures.getArtifacts('ananya', ['a-tests'])[0].checks, originalChecks);
+  assert.equal(originalChecks.find(item => item.id === 'T3').status, 'failed');
+  assert.deepEqual(employerApplication(state, 'ananya'), packet);
+  const html = render(timeline.CandidateHistory, { state });
+  assert.match(html, /Mentor example reviewed/);
+  assert.match(html, /6\/7/);
+  assert.match(html, /Concurrent-retry check failed/);
+  assert.equal(history.candidateHistory(transition(state, { type: 'reset' })).some(item => item.type === 'guidance'), false);
+});
+
+test('S12 shared chronology is derived from selected artifacts only, never private learning or mentorship', () => {
+  const privateHistory = history.candidateHistory(requested());
+  for (const selected of [['a-hld'], ['a-lld'], ['a-tests'], ['a-failure'], ['a-reasoning'], ['a-profile'], ['a-hld', 'a-tests']]) {
+    const artifacts = employerApplication(submitted(selected), 'ananya').artifacts;
+    const events = history.sharedHistory(artifacts);
+    assert.ok(events.every(item => item.relatedArtifactIds.every(id => selected.includes(id))));
+    assert.ok(events.every(item => !['learning', 'question', 'guidance'].includes(item.type)));
+    const html = render(timeline.SharedHistory, { artifacts });
+    assert.match(html, /Shared engineering timeline/);
+    for (const event of privateHistory.filter(item => ['learning', 'question', 'guidance'].includes(item.type))) assert.equal(html.includes(event.summary), false);
+    for (const artifact of fixtures.getCandidate('ananya').artifacts.filter(item => !selected.includes(item.id))) {
+      assert.equal(html.includes(artifact.content), false, artifact.id);
+      assert.equal(html.includes(artifact.id), false, artifact.id);
+    }
+    if (selected.includes('a-failure') && !selected.includes('a-tests')) assert.doesNotMatch(html, /6\/7|Six checks pass/);
+  }
+  assert.deepEqual(history.sharedHistory([]), []);
+  assert.deepEqual(history.sharedHistory([{ ...fixtures.getArtifacts('ananya', ['a-hld'])[0], content: 'injected private record' }]), []);
+  assert.deepEqual(history.sharedHistory(fixtures.getArtifacts('kabir', ['b-tests'])), []);
+});
+
+test('S12 employer profile remains unchanged by private mentor review and never infers unshared concurrency failure', () => {
+  let state = submitted(['a-hld']);
+  const before = render(ui.EmployerProfile, { state, id: 'ananya' });
+  state = transition(state, { type: 'prepare_mentor', selected: ['a-failure'], question: 'PRIVATE-MENTOR-QUESTION' });
+  state = transition(state, { type: 'mentor_consent', consent: true });
+  state = transition(state, { type: 'request_mentor', at });
+  const after = render(ui.EmployerProfile, { state, id: 'ananya' });
+  assert.equal(after, before);
+  assert.doesNotMatch(after, /PRIVATE-MENTOR-QUESTION|Mentor example reviewed|duplicate credit|a-failure|6\/7/);
+});
+
+test('S12 candidate sees the manual demo shortlist and reversal, with no invented invitation', () => {
+  let state = transition(submitted(), { type: 'shortlist', candidateId: 'ananya', confirmed: true, note: 'Discuss transaction boundary', at });
+  let html = render(ui.CandidateApplicationView, { state, send() {}, switchPersona() {} });
+  assert.match(html, /Shortlisted in this demo\./);
+  assert.match(html, /Junior Backend Engineer/);
+  assert.match(html, /Northstar Engineering/);
+  assert.match(html, /Human demo shortlist/);
+  state = transition(state, { type: 'reverse_shortlist', candidateId: 'ananya', at: later });
+  html = render(ui.CandidateApplicationView, { state, send() {}, switchPersona() {} });
+  assert.doesNotMatch(html, /Shortlisted in this demo\./);
+  assert.match(html, /Submitted in this demo\./);
+});
+
+test('S12 history is a derived view: refresh restores actions and valid v2 state needs no manufactured migration', () => {
+  const state = requested();
+  let raw;
+  const storage = { getItem: key => key === STORAGE_KEY ? raw : null, setItem: (_key, value) => { raw = value; } };
+  assert.equal(saveDemoState(storage, state), true);
+  const loaded = loadDemoState(storage);
+  assert.deepEqual(history.candidateHistory(loaded.state), history.candidateHistory(state));
+  assert.equal(loaded.notice, '');
+  assert.equal(JSON.parse(raw).version, 2);
+  assert.equal('history' in JSON.parse(raw), false);
 });

@@ -33,7 +33,7 @@ const server = await createServer({
 const { EmployerMentorDemo } = await server.ssrLoadModule(
   '/src/demo/EmployerMentorDemo.tsx',
 );
-const { STORAGE_KEY, initialDemoState } =
+const { STORAGE_KEY, initialDemoState, transition } =
   await server.ssrLoadModule('/src/demo/model.ts');
 const container = document.getElementById('root');
 let root;
@@ -118,6 +118,8 @@ test('S11 DOM: discovery → exact evidence → consent → selected applicant �
     /Application added to the fictional employer inbox/,
   );
   await press('See what the employer receives');
+  assert.equal(container.querySelector('.dj-candidate'), null, 'Private candidate history is not mounted, including hidden DOM');
+  assert.equal(container.querySelector('.dj-mentor'), null, 'Private mentor history is not mounted');
   const selected = active().querySelector('.dj-applicant[aria-pressed=true]');
   assert.match(selected.textContent, /Ananya Mehta/);
   const profile = active().querySelector('.dj-review-pane');
@@ -243,5 +245,31 @@ test('S11 DOM: guide only navigates; reset and replay need confirmation; storage
   assert.equal(personas[2].getAttribute('aria-pressed'), 'false');
   await click(personas[2]);
   assert.equal(personas[2].getAttribute('aria-pressed'), 'true');
+  assert.equal(externalCalls, 0);
+});
+
+test('S12 DOM: private mentorship stays outside the employer DOM; candidate timeline and persisted state retain next action and failure', async () => {
+  let state = initialDemoState();
+  for (const action of [
+    { type: 'prepare_application', selected: ['a-hld'] },
+    { type: 'application_consent', consent: true },
+    { type: 'submit_application', at: '2026-10-18T05:00:00.000Z' },
+    { type: 'prepare_mentor', selected: ['a-lld', 'a-failure'], question: 'PRIVATE-QUESTION-TWO-REQUESTS' },
+    { type: 'mentor_consent', consent: true },
+    { type: 'request_mentor', at: '2026-10-18T05:01:00.000Z' },
+  ]) state = transition(state, action);
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  await refresh();
+  assert.match(active().textContent, /Mentor example reviewed/);
+  assert.match(active().textContent, /Revisit the transaction boundary in LLD/);
+  assert.match(active().textContent, /6\/7/);
+  await press('See what the employer receives');
+  assert.match(container.textContent, /Shared engineering timeline/);
+  assert.equal(container.querySelectorAll('[data-history-type]').length, 1);
+  assert.equal(container.querySelector('[data-history-type]').dataset.historyType, 'design');
+  assert.doesNotMatch(container.innerHTML, /PRIVATE-QUESTION-TWO-REQUESTS|Mentor example reviewed|network-concepts|a-lld|a-failure|duplicate credit|6\/7/);
+  await press('Candidate');
+  assert.match(active().textContent, /Mentor example reviewed/);
+  assert.equal(saved().applications.ananya.selected.length, 1);
   assert.equal(externalCalls, 0);
 });
