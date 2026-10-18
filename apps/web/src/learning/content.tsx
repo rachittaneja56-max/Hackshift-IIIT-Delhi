@@ -41,24 +41,30 @@ export function LessonBlockView({ block }: { block: LessonBlock }) {
   </section>;
 }
 
-const failureSteps = [
-  ['01', 'Client sends a credit request', 'The request carries an account-scoped idempotency key.'],
-  ['02', 'Backend writes and commits', 'The balance, operation, ledger and replayable response should commit together.'],
-  ['03', 'The response is lost', 'The database may have committed even though the client sees a timeout.'],
-  ['04', 'Client retries the request', 'This is a second application request using the same operation key.'],
-];
-
 function ResponseTrace() {
   return <figure className="response-trace">
-    <figcaption>One intended credit operation · two application requests</figcaption>
-    <ol className="response-flow" aria-label="Client sends a credit request, the backend commits it, the response is lost, and the client retries with the same key.">
-      {failureSteps.map(([number, title, detail]) => <li key={number}><span className="flow-number">{number}</span><div><strong>{title}</strong><p>{detail}</p></div></li>)}
-    </ol>
+    <figcaption>One intended credit operation · one transaction · an application-level retry</figcaption>
+    <p className="sequence-summary">The API owns idempotency. PostgreSQL stores the key, balance change, ledger entry and replayable response together. If the HTTP response is lost after commit, a new HTTP request returns through the API and reads that durable record.</p>
+    <svg className="sequence-visual" viewBox="0 0 900 610" role="img" aria-labelledby="sequence-title sequence-description">
+      <title id="sequence-title">Retry-safe credit request sequence</title><desc id="sequence-description">Client sends an HTTP request to the API. The API uses one PostgreSQL transaction. PostgreSQL returns its commit result to the API. The HTTP response from API to client may be lost after commit. The client then makes a separate application-level retry. The API reads the durable idempotency record and PostgreSQL returns the stored response to the API, which replays it to the client without applying another credit.</desc>
+      <defs><marker id="sequence-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="currentColor" /></marker><marker id="sequence-arrow-lost" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="currentColor" /></marker></defs>
+      <g className="sequence-nodes"><rect x="38" y="20" width="180" height="48" rx="10"/><rect x="360" y="20" width="180" height="48" rx="10"/><rect x="682" y="20" width="180" height="48" rx="10"/><text x="128" y="50">Client</text><text x="450" y="50">API</text><text x="772" y="50">PostgreSQL</text></g>
+      <g className="sequence-lifelines"><path d="M128 68V590"/><path d="M450 68V590"/><path d="M772 68V590"/></g>
+      <g className="sequence-message request"><path d="M142 112H436" markerEnd="url(#sequence-arrow)"/><text x="289" y="101">1 · HTTP request · account key + payload</text></g>
+      <g className="sequence-message db-operation"><path d="M464 170H758" markerEnd="url(#sequence-arrow)"/><text x="611" y="157">2 · Begin transaction · reserve key and write</text></g>
+      <g className="sequence-message db-return"><path d="M758 220H464" markerEnd="url(#sequence-arrow)"/><text x="611" y="208">3 · Commit result → API</text></g>
+      <g className="sequence-message lost-response"><path d="M436 282H142" markerEnd="url(#sequence-arrow-lost)"/><path d="M284 273l12 18m0-18 12 18"/><text x="289" y="266">4 · HTTP response may be lost after commit</text></g>
+      <g className="sequence-message retry"><path d="M142 350H436" markerEnd="url(#sequence-arrow)"/><text x="289" y="339">5 · Application-level retry · same key + payload</text></g>
+      <g className="sequence-message db-operation"><path d="M464 410H758" markerEnd="url(#sequence-arrow)"/><text x="611" y="397">6 · Read durable account/key/payload record</text></g>
+      <g className="sequence-message db-return"><path d="M758 460H464" markerEnd="url(#sequence-arrow)"/><text x="611" y="448">7 · Stored response → API</text></g>
+      <g className="sequence-message replay"><path d="M436 530H142" markerEnd="url(#sequence-arrow)"/><text x="289" y="518">8 · Replay HTTP response · no second credit</text></g>
+    </svg>
+    <ol className="sequence-mobile" aria-label="Request and retry sequence"><li><strong>Client → API · Request</strong><span>Send an HTTP request with an account-scoped idempotency key and payload.</span></li><li><strong>API → PostgreSQL · Database transaction</strong><span>Reserve the key and write the balance, ledger entry and replayable response together.</span></li><li><strong>PostgreSQL → API · Transaction result</strong><span>PostgreSQL returns the commit result to the API.</span></li><li><strong>API → Client · Response may be lost</strong><span>The transaction may be committed even when the client sees a timeout.</span></li><li><strong>Client → API · Application-level retry</strong><span>The client sends a new HTTP request with the same key and payload.</span></li><li><strong>API → PostgreSQL → API · Durable lookup</strong><span>The API reads the account/key record and PostgreSQL returns the stored response.</span></li><li><strong>API → Client · Replay</strong><span>The API replays the first result without applying another credit.</span></li></ol>
+    <p className="diagram-note">This retry is a new application request, not a TCP retransmission. TCP cannot determine whether the database transaction committed.</p>
     <div className="response-outcomes">
       <section className="outcome unsafe"><span className="eyebrow">Without a durable idempotency record</span><h3>The handler may apply the credit again.</h3><p>Each application request can reach the business operation independently.</p></section>
       <section className="outcome safe"><span className="eyebrow">With a durable idempotency record</span><h3>Replay the first response.</h3><p>Find the original account, key and payload identity; return the stored result without another credit.</p></section>
     </div>
-    <p className="diagram-note">A TCP retransmission repeats byte delivery within a connection. An application retry sends another HTTP request. TCP cannot determine whether the first database transaction committed.</p>
   </figure>;
 }
 
@@ -75,12 +81,12 @@ export function EditorialCompanion() {
     <section className="concept-section"><span className="eyebrow">01 / Give the operation a stable identity</span><h3>Reuse the same key and payload on retry.</h3>
       <p>The client chooses an idempotency key once for an intended operation and reuses it for application retries. Here the key is scoped to an account, so two accounts can use the same key independently. The server also compares a canonical payload identity: reusing a key with a different amount is a conflict.</p>
       <div className="example-heading"><span className="eyebrow">Illustrative HTTP request</span><span className="small muted">Not a TrajectoryOs API route</span></div>
-      <pre><code>{`POST /example/accounts/demo/credits\nIdempotency-Key: operation-7\nContent-Type: application/json\n\n{"amountMinor": 250}\n\nA retry reuses the same key and payload.\nA completed replay returns the stored response.`}</code></pre>
+      <pre className="code-example"><code>{`POST /example/accounts/demo/credits\nIdempotency-Key: operation-7\nContent-Type: application/json\n\n{"amountMinor": 250}\n\nA retry reuses the same key and payload.\nA completed replay returns the stored response.`}</code></pre>
       <ConceptCheck question="What should a timeout tell the client about the database write?" answer="Nothing conclusive. The transaction may have committed before the response was lost, so a retry needs a durable operation identity to find and replay the first result." />
     </section>
     <section className="concept-section"><span className="eyebrow">02 / Keep related writes atomic</span><h3>A unique key does not protect separate commits.</h3>
       <p>If the balance commits before the operation record, a crash can leave a credit with no durable replay record. A retry may then apply the same intended operation again.</p>
-      <div className="expected-actual"><section><span className="eyebrow">Unsafe sequence</span><pre><code>{`UPDATE account SET balance = balance + 250;\n-- commits\n-- crash before the key is recorded\nINSERT operation(key, payload, response);`}</code></pre></section><section><span className="eyebrow">Required transaction boundary</span><p>Key reservation, balance change, ledger entry and replayable response use one checked-out connection and commit or roll back together.</p></section></div>
+      <div className="expected-actual"><section><span className="eyebrow">Illustrative SQL example · unsafe sequence</span><pre className="code-example code-example--sql" aria-label="Illustrative SQL example showing a balance update committed before the operation key is recorded"><code><span><b className="sql-keyword">UPDATE</b> account SET balance = balance + 250;</span><span className="code-comment">-- commits</span><span className="code-comment">-- crash before the key is recorded</span><span><b className="sql-keyword">INSERT</b> operation(key, payload, response);</span></code></pre></section><section><span className="eyebrow">Required transaction boundary</span><p>Key reservation, balance change, ledger entry and replayable response use one checked-out connection and commit or roll back together.</p></section></div>
       <p>A competing insert can wait for the first transaction. After it commits, the retry reads the stored response in a subsequent statement. Distinct keys must still preserve concurrent credits to the same account.</p>
       <ConceptCheck question="Which records should roll back after a failure following the balance update?" answer="Every write in the operation: the balance change, operation reservation, ledger entry and response record. The retry should be able to apply the credit once and store its result." />
     </section>

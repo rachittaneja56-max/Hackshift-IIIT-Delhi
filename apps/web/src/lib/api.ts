@@ -1,4 +1,4 @@
-import { ApiErrorEnvelopeSchema, ApiMetaSchema, ArtifactSchema, AttemptDtoSchema, AttemptListDtoSchema, ChallengeDtoSchema, ChallengeVersionSchema, CourseListDtoSchema, EvaluationDtoSchema, EvaluationResultSchema, FeedbackDtoSchema, LessonDtoSchema, type ApiMeta, type Artifact } from '@trajectoryos/contracts';
+import { ApiErrorEnvelopeSchema, ApiMetaSchema, ArtifactSchema, AttemptDtoSchema, AttemptListDtoSchema, ChallengeDtoSchema, ChallengeVersionSchema, CourseListDtoSchema, DesignReviewDtoSchema, EvaluationDtoSchema, EvaluationResultSchema, FeedbackDtoSchema, LessonDtoSchema, type ApiMeta, type Artifact } from '@trajectoryos/contracts';
 
 export class ApiClientError extends Error {
   constructor(message: string, public status = 0, public code = 'NETWORK_ERROR', public requestId?: string, public retryAfter?: string, public details?: Record<string, unknown>, public retryable = false) { super(message); }
@@ -64,7 +64,7 @@ export class ApiClient {
         const envelope = record(json); const meta = ApiMetaSchema.parse(envelope.meta);
         if (Object.keys(envelope).some(k => !['data', 'meta'].includes(k)) || !('data' in envelope)) throw new Error();
         const result = schema.parse(envelope.data); this.metadata(meta); return result;
-      } catch { throw new ApiClientError('The API response does not match contract v0.5. No success was assumed.', response.status, 'INVALID_RESPONSE', requestId); }
+      } catch { throw new ApiClientError('The API response does not match contract v0.6. No success was assumed.', response.status, 'INVALID_RESPONSE', requestId); }
     }
     throw new ApiClientError('Your session has expired. Sign in again.', 401, 'UNAUTHENTICATED');
   }
@@ -81,4 +81,6 @@ export class ApiClient {
   evidence = (id: string) => this.request(`/evidence/${encodeURIComponent(id)}`, EvidenceSchema);
   feedback = (id: string) => this.request(`/evidence/${id}/feedback`, FeedbackDtoSchema);
   requestFeedback = (id: string) => this.request(`/evidence/${id}/feedback`, FeedbackDtoSchema, 'POST', {});
+  designReview = (id: string) => this.request(`/evidence/${encodeURIComponent(id)}/design-review`, DesignReviewDtoSchema);
+  requestDesignReview = (id: string, retry = false) => this.request(`/evidence/${encodeURIComponent(id)}/design-review`, DesignReviewDtoSchema, 'POST', retry ? { retry: true } : {});
 }

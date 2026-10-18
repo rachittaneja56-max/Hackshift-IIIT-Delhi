@@ -69,17 +69,15 @@ export function HistoryPage() {
     finally { setBusy(false); }
   };
   const items = [...(first.data?.items ?? []), ...extra].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index);
-  const drafts = items.filter(item => item.status === 'draft');
   return <main id="main-content" tabIndex={-1} className="page history-page">
     <PageTitle eyebrow="My Evidence / Engineering history" title="Your work, drafts and observed results."><p className="lead">Each attempt stays separate. Resume a draft, follow an evaluation, or inspect the checks that finished.</p></PageTitle>
     <ErrorNotice error={first.error ?? error} retry={first.error ? first.reload : undefined} />
     {first.loading ? <Loading label="Loading your owned attempts…" /> : items.length ? <>
       <div className="history-heading"><div><span className="eyebrow">Recent attempts</span><p className="small muted">Drafts are listed first. Evaluation errors have no test verdict.</p></div>
-        {drafts.length ? <Link className="button primary" href={`/lab/attempts/${drafts[0].id}`}>Resume a draft →</Link> : next ? <button disabled={busy} onClick={() => void more()}>{busy ? 'Loading older attempts…' : 'Load older attempts before starting another'}</button> : <StartAttempt label="Start an engineering lab attempt" />}
+        {next ? <button disabled={busy} onClick={() => void more()}>{busy ? 'Loading older attempts…' : 'Load older attempts'}</button> : <StartAttempt label="Start an engineering lab attempt" />}
       </div>
       <HistoryRecords items={items} filter={filter} onFilter={setFilter} />
       {next && <button className="load-more" disabled={busy} onClick={() => void more()}>{busy ? 'Loading more…' : 'Load older attempts'}</button>}
-      {drafts.length > 0 && <details className="new-attempt-disclosure"><summary>Start another attempt</summary><p>Each attempt starts with empty drawings and remains a separate history record.</p><StartAttempt label="Create a separate attempt" /></details>}
     </> : !first.error && <Empty title="No attempts have been saved yet."><p>Read the available lesson, then start the retry-safe credits lab. Your draft will appear here as soon as it is created.</p><div className="actions"><Link className="button" href="/learn/retry-safe-writes/1">Read the lesson</Link><Link className="button primary" href="/lab">Open the engineering lab</Link></div></Empty>}
   </main>;
 }

@@ -4,7 +4,8 @@ import { ArtifactSchema, SubmissionReadyArtifactSchema } from '@trajectoryos/con
 import { ApiClient, ApiClientError, EvidenceSchema, apiOrigin } from '../src/lib/api.ts';
 import { SaveQueue } from '../src/attempts/save-queue.ts';
 import { artifactError, recoveryArtifact, sceneError, serializeElements } from '../src/lib/scenes.ts';
-import { feedbackLabel, observationSummary } from '../src/lib/presentation.ts';
+import { feedbackLabel, observationSummary, testLabel } from '../src/lib/presentation.ts';
+import { serverSubmissionIssues, submissionIssues } from '../src/attempts/validation.ts';
 import { mentorPacket } from '../src/previews/model.ts';
 import { careerApi } from '../src/previews/career-api.ts';
 import { SceneSession } from '../src/drawing/scene-session.ts';
@@ -184,4 +185,42 @@ test('F4: mentor packet contains only selected owned content and marks missing a
 test('F1: rate-limit writes respect Retry-After and keep safe error metadata', async () => {
   let count = 0; const api = new ApiClient('https://api.example.com', async () => 'token', () => {}, async () => { count++; return new Response(JSON.stringify({ error: { code: 'RATE_LIMITED', message: 'Full', retryable: true }, meta: { requestId: id, isMock: false } }), { status: 429, headers: { 'Retry-After': '2' } }); });
   await assert.rejects(api.create(id), error => error.status === 429 && error.requestId === id && error.retryAfter === '2'); await assert.rejects(api.create(id), error => error.status === 429); assert.equal(count, 1);
+});
+
+test('S8: submission issues map missing, whitespace and server validation to actionable fields', () => {
+  const missing = submissionIssues(empty());
+  assert.ok(missing.some(issue => issue.path === 'variantId' && /Choose the implementation/.test(issue.message)));
+  assert.ok(missing.some(issue => issue.path === 'aiCritique' && /Explain what may be incorrect/.test(issue.message)));
+  assert.ok(missing.some(issue => issue.path === 'repairJustification' && /Explain why/.test(issue.message)));
+  assert.deepEqual(submissionIssues(ready()), []);
+  const whitespace = submissionIssues({ ...ready(), aiCritique: '   ' });
+  assert.ok(whitespace.some(issue => issue.path === 'aiCritique'));
+  const server = serverSubmissionIssues([
+    { path: ['artifact', 'variantId'], message: 'Required' },
+    { path: ['hld'], message: 'Scene must contain a nondeleted drawable element.' },
+    { path: ['unknown', 'field'], message: 'Internal detail' },
+  ]);
+  assert.equal(server.find(issue => issue.path === 'variantId')?.targetId, 'field-variantId');
+  assert.match(server.find(issue => issue.path === 'hld')!.message, /Add at least one element/);
+  assert.equal(server.find(issue => issue.path === 'unknown.field')?.message, 'Review this field and try again.');
+});
+
+test('S8: design review API adapter validates GET and retry request envelopes', async () => {
+  const calls: { url: string; method?: string; body?: string }[] = [];
+  const data = { id, evidenceId: id, artifactSha256: 'a'.repeat(64), reviewVersion: 'design-review-v1', status: 'not_requested', source: null,
+    provider: null, model: null, hld: null, lld: null, limitations: [], failureCode: null, createdAt: null, updatedAt: null };
+  const api = new ApiClient('https://api.example.com', async () => 'token', () => {}, async (url, options) => {
+    calls.push({ url: String(url), method: options.method, body: typeof options.body === 'string' ? options.body : undefined });
+    return new Response(JSON.stringify({ data, meta: { requestId: id, isMock: false } }), { status: 200 });
+  });
+  assert.equal((await api.designReview(id)).status, 'not_requested');
+  assert.equal((await api.requestDesignReview(id, true)).reviewVersion, 'design-review-v1');
+  assert.equal(calls[0].url, `https://api.example.com/api/v1/evidence/${id}/design-review`);
+  assert.equal(calls[0].method, 'GET');
+  assert.deepEqual(JSON.parse(calls[1].body!), { retry: true });
+});
+
+test('S8: canonical check labels give career evidence a human description while preserving test IDs', () => {
+  assert.match(testLabel('T5'), /failure after the balance update rolls back the transaction/i);
+  assert.equal(testLabel('T8'), 'Returned test observation');
 });

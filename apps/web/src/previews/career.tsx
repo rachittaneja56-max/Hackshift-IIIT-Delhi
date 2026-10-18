@@ -6,6 +6,7 @@ import { Badge, ErrorNotice, Loading, PageTitle, PreviewNotice, shortId } from '
 import { careerApi } from './career-api';
 import { sampleJob } from './fixtures';
 import { useOwnedSelection } from './selection';
+import { testLabel } from '../lib/presentation';
 
 type CareerStage = 'job' | 'evidence' | 'review' | 'resume';
 export function CareerSteps({ stage, complete }: { stage: CareerStage; complete: CareerStage[] }) {
@@ -19,6 +20,10 @@ function attemptLabel(item: AttemptSummary) {
 
 function coverageLabel(value: string) {
   return value.replaceAll('_', ' ');
+}
+
+export function CareerRelatedChecks({ tests }: { tests: { testId: string; status: string }[] }) {
+  return <details className="related-checks"><summary>Related checks ({tests.length})</summary><ul>{tests.map(test => <li key={test.testId}><strong>{test.testId}</strong><span>{testLabel(test.testId)}</span><span className={test.status === 'passed' ? 'pass-text' : 'fail-text'}>{test.status}</span></li>)}</ul></details>;
 }
 
 export function CareerPreview() {
@@ -139,12 +144,12 @@ export function CareerPreview() {
         {requirements.length ? <div className="table-scroll"><table><thead><tr><th>Requirement from the job description</th><th>Coverage</th><th>Linked observations</th></tr></thead><tbody>{requirements.map(requirement => <tr key={requirement.id}>
           <td><strong>{requirement.text}</strong><p className="small muted">Job-description excerpt: “{requirement.source.excerpt}”</p></td>
           <td><Badge tone={requirement.coverage === 'related_observation' ? 'pass' : requirement.coverage === 'not_observed' ? 'warning' : ''}>{coverageLabel(requirement.coverage)}</Badge>{requirement.candidateFactIds.map(id => <p className="small" key={id}>Candidate-supplied fact {shortId(id)}</p>)}</td>
-          <td>{requirement.evidence.length ? requirement.evidence.map(reference => <div className="career-evidence-link" key={reference.evidenceId}><Link href={`/evidence/attempts/${review.evidence.find(record => record.evidenceId === reference.evidenceId)?.attemptId ?? ''}`}>Evidence {shortId(reference.evidenceId)}</Link><p>{reference.tests.map(test => <span key={test.testId} className={test.status === 'passed' ? 'pass-text' : 'fail-text'}>{test.testId}: {test.status} </span>)}</p><small>{reference.explanation}</small></div>) : <span className="muted">No test reference supplied.</span>}</td>
+          <td>{requirement.evidence.length ? requirement.evidence.map(reference => <div className="career-evidence-link" key={reference.evidenceId}><Link href={`/evidence/attempts/${review.evidence.find(record => record.evidenceId === reference.evidenceId)?.attemptId ?? ''}`}>Evidence {shortId(reference.evidenceId)}</Link><p>{reference.tests.map(test => <span key={test.testId} className={test.status === 'passed' ? 'pass-text' : 'fail-text'}><strong>{test.testId}</strong>: {testLabel(test.testId)} ({test.status}) </span>)}</p><small>{reference.explanation}</small></div>) : <span className="muted">No test reference supplied.</span>}</td>
         </tr>)}</tbody></table></div> : <p>No explicit requirements were extracted.</p>}
         <section className="unresolved-requirements"><h3>Not observed, self-reported or unassessed</h3>{unresolved.length ? <ul>{unresolved.map(requirement => <li key={requirement.id}><Badge>{coverageLabel(requirement.coverage)}</Badge><span>{requirement.text}</span></li>)}</ul> : <p>All extracted items were linked to related observations. This does not establish overall role qualification.</p>}</section>
         <section className="career-evidence-records"><h3>Selected evidence · returned test outcomes</h3>{review.evidence.map(record => <article className="included-run" key={record.evidenceId}>
           <div className="section-heading"><h4>Attempt {shortId(record.attemptId)} · evidence {shortId(record.evidenceId)}</h4><Badge>Reviewed variant · {record.variantId}</Badge></div>
-          <div className="run-summary">{record.tests.map(test => <span key={test.testId} className={test.status === 'passed' ? 'pass-text' : 'fail-text'}>{test.testId} {test.status}</span>)}</div>
+          <CareerRelatedChecks tests={record.tests} />
           <p className="hash small">Artifact {record.provenance.artifactSha256} · recorded {new Date(record.createdAt).toLocaleString()}</p>
           <details><summary>Evidence provenance</summary><dl className="provenance-data"><div><dt>Runner</dt><dd>{record.provenance.runnerKind}</dd></div><div><dt>Challenge</dt><dd>{record.provenance.challenge.slug} v{record.provenance.challenge.version}</dd></div><div><dt>Content / manifest</dt><dd>{record.provenance.contentSha256} / {record.provenance.manifestSha256}</dd></div><div><dt>Suite</dt><dd>{record.provenance.suiteVersion} · {record.provenance.suiteSha256}</dd></div><div><dt>Implementation</dt><dd>{record.provenance.implementationSha256}</dd></div><div><dt>App commit</dt><dd>{record.provenance.appCommit}</dd></div><div><dt>Database</dt><dd>{record.provenance.databaseVersion}</dd></div><div><dt>Run</dt><dd>{record.provenance.runId} · generation {record.provenance.generation}</dd></div><div><dt>Run times</dt><dd>{record.provenance.startedAt} — {record.provenance.finishedAt}</dd></div></dl></details>
           <details><summary>Limits for this record</summary><ul>{record.limitations.map((line, index) => <li key={index}>{line}</li>)}</ul></details>

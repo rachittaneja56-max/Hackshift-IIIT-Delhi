@@ -5,7 +5,8 @@ import { Badge } from '../components/ui';
 import { SceneView } from '../drawing/Scene';
 import { variantLabel } from '../attempts/workspace';
 import { FeedbackPanel } from './feedback';
-import { observationSummary } from '../lib/presentation';
+import { DesignReviewPanel } from './design-review';
+import { observationSummary, testLabel } from '../lib/presentation';
 
 export function ArtifactSnapshot({ artifact, identity }: { artifact: Artifact; identity: string }) {
   const [scene, setScene] = useState<'hld' | 'lld' | null>(null);
@@ -20,15 +21,7 @@ export function ArtifactSnapshot({ artifact, identity }: { artifact: Artifact; i
   </section>;
 }
 
-export const testDescription: Record<string, string> = {
-  T1: 'One valid credit stores one operation, ledger entry and replayable response.',
-  T2: 'Sequential retries, including a fresh module instance, replay without another credit.',
-  T3: 'Concurrent duplicate requests on independent PostgreSQL clients replay one effect.',
-  T4: 'A changed amount with the same account and key returns 409 without a write.',
-  T5: 'Injected failure after balance mutation rolls back all effects; retry succeeds.',
-  T6: 'The same key on two accounts creates independent operations.',
-  T7: 'Concurrent distinct keys on one account preserve both credits.',
-};
+export const testDescription = Object.fromEntries(['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map(id => [id, testLabel(id)])) as Record<string, string>;
 
 const testGroups = [
   { title: 'A valid operation', ids: ['T1'] },
@@ -66,11 +59,20 @@ export function Results({ result, selected, select }: { result: EvaluationResult
 
 export function EvidenceDetails({ evidence }: { evidence: Evidence }) {
   const [selected, select] = useState(evidence.result.tests[0]?.id ?? '');
+  const passed = evidence.result.tests.filter(test => test.status === 'passed').length;
+  const failed = evidence.result.tests.length - passed;
   return <>
+    <section className="evidence-summary" aria-labelledby="evidence-summary-heading">
+      <div><span className="eyebrow">Evidence summary</span><h2 id="evidence-summary-heading">What this run records.</h2></div>
+      <dl><div><dt>Challenge</dt><dd>{evidence.provenance.challenge.slug} · version {evidence.provenance.challenge.version}</dd></div><div><dt>Implementation selected</dt><dd>{variantLabel(evidence.artifact.variantId)} · {evidence.artifact.variantId ?? 'not selected'}</dd></div><div><dt>Evaluation finished</dt><dd>{new Date(evidence.provenance.finishedAt).toLocaleString()}</dd></div><div><dt>Checks</dt><dd>{passed} passed · {failed} failed</dd></div><div><dt>Execution source</dt><dd>{evidence.provenance.isSynthetic ? 'Seeded fixture data' : 'Real PostgreSQL execution'}</dd></div></dl>
+      <p>These checks record specific database behavior in this run. They do not prove every production failure mode, the quality of your diagrams, or who authored the reviewed implementation.</p>
+      <a className="text-action" href="#saved-designs">View saved diagrams and design feedback ↓</a>
+    </section>
     <ArtifactSnapshot artifact={evidence.artifact} identity={evidence.id} />
+    <DesignReviewPanel evidenceId={evidence.id} artifact={evidence.artifact} />
     <Results result={evidence.result} selected={selected} select={select} />
     <section className="limitations"><span className="eyebrow">Limits of this record</span><h3>What the run can and cannot establish.</h3><ul>{evidence.limitations.map((line, index) => <li key={index}>{line}</li>)}</ul><p>Execution uses synthetic fixture credits. No real money is represented. Selecting an implementation does not establish learner authorship.</p></section>
     <FeedbackPanel evidenceId={evidence.id} testIds={evidence.result.tests.map(item => item.id)} selectTest={select} />
-    <section className="provenance"><span className="eyebrow">Trace the evidence</span><h2>Build and run details.</h2><p>These identifiers locate the challenge content, selected source, test suite and database run that produced this immutable record. Feedback is a separate interpretation.</p><details><summary>Full returned provenance</summary><dl>{Object.entries(evidence.provenance).map(([key, value]) => <div key={key}><dt>{key}</dt><dd className="hash">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd></div>)}</dl></details><details><summary>Complete immutable record</summary><pre>{JSON.stringify({ id: evidence.id, evaluationId: evidence.evaluationId, attemptId: evidence.attemptId, createdAt: evidence.createdAt, artifact: evidence.artifact, provenance: evidence.provenance, result: evidence.result, limitations: evidence.limitations }, null, 2)}</pre></details><p className="small muted">Current feedback status: {evidence.feedbackStatus} · The API does not expose an evidence snapshot hash.</p></section>
+    <section className="provenance"><span className="eyebrow">Advanced details</span><h2>Verification and run identifiers.</h2><p>Exact technical provenance is available for review and support.</p><details><summary>Advanced: verification and run identifiers</summary><h3>Challenge and content</h3><dl className="provenance-group">{[['challenge', `${evidence.provenance.challenge.slug} v${evidence.provenance.challenge.version}`], ['contentSha256', evidence.provenance.contentSha256], ['manifestSha256', evidence.provenance.manifestSha256]].map(([key, value]) => <div key={String(key)}><dt>{key}</dt><dd className="hash"><code>{value}</code></dd></div>)}</dl><h3>Evaluator and test suite</h3><dl className="provenance-group">{[['runnerKind', evidence.provenance.runnerKind], ['suiteVersion', evidence.provenance.suiteVersion], ['suiteSha256', evidence.provenance.suiteSha256], ['implementationSha256', evidence.provenance.implementationSha256]].map(([key, value]) => <div key={String(key)}><dt>{key}</dt><dd className="hash"><code>{value}</code></dd></div>)}</dl><h3>Runtime and database</h3><dl className="provenance-group">{[['databaseVersion', evidence.provenance.databaseVersion], ['appCommit', evidence.provenance.appCommit], ['isSynthetic', evidence.provenance.isSynthetic]].map(([key, value]) => <div key={String(key)}><dt>{key}</dt><dd className="hash"><code>{value}</code></dd></div>)}</dl><h3>Hashes and run identifiers</h3><dl className="provenance-group">{[['artifactSha256', evidence.provenance.artifactSha256], ['runId', evidence.provenance.runId], ['generation', evidence.provenance.generation], ['startedAt', evidence.provenance.startedAt], ['finishedAt', evidence.provenance.finishedAt]].map(([key, value]) => <div key={String(key)}><dt>{key}</dt><dd className="hash"><code>{value ?? 'Not recorded'}</code></dd></div>)}</dl></details><details><summary>Complete immutable record</summary><pre>{JSON.stringify({ id: evidence.id, evaluationId: evidence.evaluationId, attemptId: evidence.attemptId, createdAt: evidence.createdAt, artifact: evidence.artifact, provenance: evidence.provenance, result: evidence.result, limitations: evidence.limitations }, null, 2)}</pre></details><p className="small muted">Current feedback status: {evidence.feedbackStatus} · The API does not expose an evidence snapshot hash.</p></section>
   </>;
 }

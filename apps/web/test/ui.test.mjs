@@ -20,11 +20,16 @@ test('F3: returned mixed outcomes and limitations render without changing the ve
 test('Lesson companion teaches response loss, application retries and the durable replay boundary', async () => {
   const { EditorialCompanion } = await server.ssrLoadModule('/src/learning/content.tsx');
   const html = renderToStaticMarkup(createElement(EditorialCompanion));
-  assert.match(html, /Client sends a credit request/);
-  assert.match(html, /The response is lost/);
+  assert.match(html, /Client sends an HTTP request/);
+  assert.match(html, /response from API to client may be lost/);
   assert.match(html, /The handler may apply the credit again/);
   assert.match(html, /Replay the first response/);
-  assert.match(html, /TCP retransmission repeats byte delivery/);
+  assert.match(html, /not a TCP retransmission/);
+  assert.match(html, /Client sends an HTTP request/);
+  assert.match(html, /API owns idempotency/);
+  assert.match(html, /Application-level retry/);
+  assert.match(html, /same key \+ payload/);
+  assert.match(html, /Stored response/);
   assert.match(html, /Check your understanding/);
   assert.match(html, /outside the published lesson hash/);
 });
@@ -37,6 +42,29 @@ test('History records make drafts, completed runs and execution errors distinct'
   assert.match(html, /Execution error/);
   assert.match(html, /no test verdict/);
   assert.match(html, /aria-label="Filter attempts"/);
+  assert.equal((html.match(/Resume draft/g) ?? []).length, 1);
+});
+test('S8: HLD and LLD review findings show statuses and exact saved diagram citations', async () => {
+  const { ReviewFindings } = await server.ssrLoadModule('/src/evidence/design-review.tsx');
+  const html = renderToStaticMarkup(createElement(ReviewFindings, { title: 'HLD', section: {
+    observedElements: [{ text: 'The drawing contains the label “API”.', evidenceElements: [{ elementId: 'api-box', excerpt: 'API' }], connectionIds: [] }],
+    findings: [{ criterion: 'system_boundaries', status: 'explicitly_shown', explanation: 'The API boundary is explicitly labelled.', evidenceElements: [{ elementId: 'api-box', excerpt: 'API' }], connectionIds: [], nextStep: null }],
+    questions: ['Where does a retry re-enter the request path?'], limitations: [],
+  } }));
+  assert.match(html, /HLD analysis/);
+  assert.match(html, /System boundaries/);
+  assert.match(html, /Explicitly shown/);
+  assert.match(html, /Element api-box/);
+  assert.match(html, /Where does a retry re-enter/);
+});
+test('S8: history rows retain a single draft action and career checks explain canonical IDs', async () => {
+  const { CareerRelatedChecks } = await server.ssrLoadModule('/src/previews/career.tsx');
+  const html = renderToStaticMarkup(createElement(CareerRelatedChecks, { tests: [{ testId: 'T5', status: 'failed' }, { testId: 'T6', status: 'passed' }] }));
+  assert.match(html, /Related checks \(2\)/);
+  assert.match(html, /T5/);
+  assert.match(html, /failure after the balance update rolls back the transaction/i);
+  assert.match(html, /T6/);
+  assert.match(html, /same key remains independent across two accounts/i);
 });
 test('Mentor preview formats the selected packet and labels it as unsent', async () => {
   const { MentorPacketContents } = await server.ssrLoadModule('/src/previews/mentor.tsx');

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { SubmissionReadyArtifactSchema, type Artifact, type ChallengeDto, type VariantId } from '@trajectoryos/contracts';
+import type { Artifact, ChallengeDto, VariantId } from '@trajectoryos/contracts';
 import { useApi, useResource } from '../app/context';
 import { Link, useRouter } from '../app/router';
 import { Badge, ErrorNotice, Loading, PageTitle, shortId } from '../components/ui';
@@ -10,6 +10,8 @@ import { useAttempt } from './use-attempt';
 import { SaveQueue } from './save-queue';
 import { StartAttempt } from './start';
 import { EvaluationPanel } from '../evidence/evaluation';
+import { ApiClientError } from '../lib/api';
+import { serverSubmissionIssues, submissionIssues, submissionIssue, type SubmissionIssue } from './validation';
 export const variantLabel = (id: string | null) => id === 'credit-first' ? 'Variant A' : id === 'key-only' ? 'Variant B' : id === 'atomic' ? 'Variant C' : 'Not selected';
 export function LabLanding() {
   const { api, userId } = useApi(); const c = useResource(() => api.challenge(), `challenge:${userId}`);
@@ -64,9 +66,9 @@ function SceneGuide({ scene }: { scene: 'hld' | 'lld' }) {
   return <details className="scene-guide"><summary>View an example structure</summary><figure><StarterDiagram scene={scene} /><figcaption>Illustrative guidance only. It is not added to your drawing or saved with your attempt.</figcaption></figure></details>;
 }
 
-function SceneLauncher({ scene, id, prompt, count, frozen }: { scene: 'hld' | 'lld'; id: string; prompt: string; count: number; frozen: boolean }) {
+function SceneLauncher({ scene, id, prompt, count, frozen, invalid }: { scene: 'hld' | 'lld'; id: string; prompt: string; count: number; frozen: boolean; invalid: boolean }) {
   const label = scene === 'hld' ? 'High-level design' : 'Low-level design';
-  return <article className="scene-card">
+  return <article id={`field-${scene}`} tabIndex={-1} aria-invalid={invalid} className={`scene-card ${scene === 'hld' ? 'field-hld' : 'field-lld'} ${invalid ? 'field-invalid' : ''}`}>
     <Link className="scene-launcher" href={`/lab/attempts/${id}/design/${scene}`} aria-label={`${frozen ? 'View' : count ? 'Continue' : 'Open'} ${label}`}>
       <span className="eyebrow">{scene.toUpperCase()} / {label}</span><div className="diagram-glyph" aria-hidden="true">{scene === 'hld' ? 'Client → API → Database' : 'Key → Transaction → Writes'}</div>
       <h3>{frozen ? `View ${scene.toUpperCase()} drawing` : count ? `Continue ${scene.toUpperCase()} drawing` : `Open ${scene.toUpperCase()} drawing`} <span aria-hidden="true">↗</span></h3>
@@ -76,13 +78,13 @@ function SceneLauncher({ scene, id, prompt, count, frozen }: { scene: 'hld' | 'l
   </article>;
 }
 
-function DecisionFields({ artifact, disabled, change }: { artifact: Artifact; disabled: boolean; change: (update: Partial<Artifact>) => void }) {
+function DecisionFields({ artifact, disabled, change, invalidPaths }: { artifact: Artifact; disabled: boolean; change: (update: Partial<Artifact>) => void; invalidPaths: string[] }) {
   const fields = [
     { key: 'keyScope', label: 'Idempotency key scope', help: 'T6 checks whether two accounts can use the same key independently.', options: [['account', 'Per account'], ['global', 'Global']] },
     { key: 'atomicity', label: 'Database write boundary', help: 'T5 injects a failure after the balance update and checks rollback.', options: [['transaction', 'One transaction'], ['separate_writes', 'Separate writes']] },
     { key: 'payloadConflict', label: 'Same key, changed payload', help: 'T4 checks whether a different amount is rejected without writes.', options: [['reject', 'Reject the conflict'], ['replay', 'Replay the original']] },
   ] as const;
-  return <fieldset disabled={disabled} className="decisions"><legend>Three design decisions</legend>{fields.map(field => <label className="decision-field" htmlFor={`decision-${field.key}`} key={field.key}><span>{field.label}<small>{field.help}</small></span><select id={`decision-${field.key}`} value={artifact.decisions[field.key] ?? ''} onChange={event => change({ decisions: { ...artifact.decisions, [field.key]: event.target.value || null } })}><option value="">Choose one…</option>{field.options.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>)}</fieldset>;
+  return <fieldset disabled={disabled} className="decisions"><legend>Three design decisions</legend>{fields.map(field => <label className="decision-field" htmlFor={`field-decisions-${field.key}`} key={field.key}><span>{field.label}<small>{field.help}</small></span><select id={`field-decisions-${field.key}`} aria-invalid={invalidPaths.includes(`decisions.${field.key}`)} value={artifact.decisions[field.key] ?? ''} onChange={event => change({ decisions: { ...artifact.decisions, [field.key]: event.target.value || null } })}><option value="">Choose one…</option>{field.options.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>)}</fieldset>;
 }
 
 export function AttemptWorkspace({ id, scene }: { id: string; scene?: 'hld' | 'lld' }) {
@@ -92,13 +94,25 @@ export function AttemptWorkspace({ id, scene }: { id: string; scene?: 'hld' | 'l
   const challenge = useResource(() => api.challenge(), `challenge:${userId}`);
   const [requirements, showRequirements] = useState(false);
   const [review, setReview] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
   const [submitError, setSubmitError] = useState<Error>();
+  const [serverIssues, setServerIssues] = useState<SubmissionIssue[]>([]);
   const reviewRef = useRef<HTMLDialogElement>(null);
   const [sceneEpoch, setSceneEpoch] = useState(0);
   const { queue } = state;
   const requestedTab = new URLSearchParams(search).get('tab') ?? 'design';
   const tab = requestedTab === 'code' || requestedTab === 'evidence' ? requestedTab : 'design';
   useEffect(() => { if (review) reviewRef.current?.showModal(); else reviewRef.current?.close(); }, [review]);
+  const currentIssues = queue ? [...submissionIssues(queue.local, queue.server.revision), ...serverIssues] : [];
+  const missing = [...new Map(currentIssues.map(issue => [issue.path, issue])).values()];
+  useEffect(() => {
+    if (review || !showValidation || !missing[0]) return;
+    const requiredTab = ['hld', 'lld'].includes(missing[0].path) || missing[0].path.startsWith('decisions.') ? 'design' : 'code';
+    if (tab !== requiredTab) { navigate(`/lab/attempts/${id}?tab=${requiredTab}`); return; }
+    const target = document.getElementById(missing[0].targetId);
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [review, showValidation, missing[0]?.targetId, tab, navigate, id]);
   if (state.error) return <main id="main-content" tabIndex={-1} className="page"><ErrorNotice error={state.error} retry={state.reload} /></main>;
   if (!queue || challenge.loading) return <main id="main-content" tabIndex={-1} className="page"><Loading label="Restoring your attempt and challenge…" /></main>;
   if (!challenge.data) return <main id="main-content" tabIndex={-1} className="page"><ErrorNotice error={challenge.error} retry={challenge.reload} /></main>;
@@ -106,11 +120,26 @@ export function AttemptWorkspace({ id, scene }: { id: string; scene?: 'hld' | 'l
   const artifact = queue.local;
   const frozen = queue.server.status !== 'draft' || queue.submitting || queue.submissionUnknown;
   const disabled = frozen || !!state.recovery || queue.state === 'Conflict';
-  const change = (update: Partial<Artifact>) => queue.edit({ ...queue.local, ...update });
+  const change = (update: Partial<Artifact>) => { setServerIssues([]); setSubmitError(undefined); queue.edit({ ...queue.local, ...update }); };
   const save = () => { void queue.flush().catch(() => {}); };
-  const ready = SubmissionReadyArtifactSchema.safeParse(artifact);
-  const missing = ready.success ? [] : ready.error.issues.map(issue => ({ path: issue.path.join('.'), message: issue.message }));
-  const submit = async () => { setSubmitError(undefined); try { await queue.submit(); setReview(false); navigate(`/evidence/attempts/${id}`); } catch (error) { setSubmitError(error instanceof Error ? error : new Error('Submission failed.')); } };
+  const submit = async () => {
+    setSubmitError(undefined);
+    try { await queue.submit(); setReview(false); navigate(`/evidence/attempts/${id}`); }
+    catch (error) {
+      if (error instanceof ApiClientError && error.status === 422) {
+        const issues = serverSubmissionIssues(error.details?.issues);
+        setServerIssues(issues.length ? issues : [submissionIssue({ path: '', message: error.message })]);
+        setShowValidation(true); setReview(false);
+        return;
+      }
+      setSubmitError(error instanceof Error ? error : new Error('Submission failed.'));
+    }
+  };
+  const beginReview = () => {
+    setShowValidation(true);
+    if (missing.length) return;
+    setReview(true);
+  };
   const banners = <>{queue.submissionUnknown && <div className="notice warning"><strong>Submission status is uncertain.</strong><p>Editing is paused. Check this existing attempt before taking another action.</p><button onClick={() => void queue.checkSubmission()}>Check submission status</button></div>}{state.storageError && <div className="notice warning" role="alert">{state.storageError}<RecoveryDownload queue={queue} /></div>}{state.recovery && <div className="notice warning"><strong>A device copy has unsaved work.</strong><p>Server revision {queue.server.revision}; device base revision {state.recovery.baseRevision}. Restore it to compare before writing.</p><div className="actions"><button onClick={state.recover}>Restore device copy</button><button onClick={state.discardRecovery}>Use server draft</button></div></div>}<Conflicts queue={queue} /><ErrorNotice error={queue.error} />{queue.error && <RecoveryDownload queue={queue} />}</>;
 
   if (scene) {
@@ -127,22 +156,23 @@ export function AttemptWorkspace({ id, scene }: { id: string; scene?: 'hld' | 'l
   return <main id="main-content" tabIndex={-1} className="workspace">
     <div className="attempt-header"><div><span className="eyebrow">Engineering lab · challenge v1 · attempt {shortId(id)}</span><h1 tabIndex={-1}>{challenge.data.title}</h1></div><div className="attempt-state"><Badge>{queue.server.status.replaceAll('_', ' ')}</Badge><SaveStatus queue={queue} /></div></div>
     {banners}<WorkflowSteps active={review ? 'review' : tab} />
-    <div className="workspace-tabs" role="navigation" aria-label="Attempt sections">{[['design', '01', 'Design'], ['code', '02', 'Investigate code'], ['evidence', '03', 'Evidence']].map(([value, number, label]) => <Link key={value} href={`/lab/attempts/${id}?tab=${value}`} aria-current={tab === value ? 'page' : undefined}><small>{number}</small> {label}</Link>)}</div>
+    <div className="workspace-tabs" role="navigation" aria-label="Attempt sections">{[['design', '01', 'Design'], ['code', '02', 'Investigate code'], ['evidence', '03', 'Evidence']].map(([value, number, label]) => <Link id={`tab-${value}`} key={value} href={`/lab/attempts/${id}?tab=${value}`} aria-current={tab === value ? 'page' : undefined}><small>{number}</small> {label}</Link>)}</div>
+    {showValidation && missing.length > 0 && <div className="notice warning submission-errors" role="alert" aria-labelledby="submission-errors-title"><h2 id="submission-errors-title">Complete these fields before submitting.</h2><ul>{missing.map(issue => <li key={issue.path}><a href={`#${issue.targetId}`}>{issue.message}</a></li>)}</ul><details><summary>Advanced: validation details</summary><ul>{missing.map(issue => <li key={issue.path}><code>{issue.path || 'submission'}</code> · {issue.diagnostic}</li>)}</ul></details></div>}
     <div className="lab-grid"><aside className="requirements"><Requirements challenge={challenge.data} /></aside><section className="lab-work">
-      {tab === 'evidence' ? <EvaluationPanel attempt={queue.server} /> : tab === 'code' ? <Investigation attemptId={id} artifact={artifact} challenge={challenge.data} disabled={disabled} change={change} /> : <>
+      {tab === 'evidence' ? <EvaluationPanel attempt={queue.server} /> : tab === 'code' ? <Investigation attemptId={id} artifact={artifact} challenge={challenge.data} disabled={disabled} change={change} invalidPaths={missing.map(issue => issue.path)} /> : <>
         <div className="section-heading"><div><span className="eyebrow">Step 1 / Design the behavior</span><h2>Show where the request goes and what must commit.</h2></div><Badge>Saved as a human-review artifact</Badge></div>
         <p className="muted design-intro">Draw the client, API and database in HLD. Use LLD to show key reservation, payload conflicts, transaction scope and stored response. Both scenes start empty; example guidance stays outside your work.</p>
-        <div className="scene-launchers">{(['hld', 'lld'] as const).map(name => <SceneLauncher key={name} scene={name} id={id} prompt={challenge.data!.diagramPrompts[name]} count={drawableCount(artifact[name])} frozen={frozen} />)}</div>
-        <DecisionFields artifact={artifact} disabled={disabled} change={change} />
+        <div className="scene-launchers">{(['hld', 'lld'] as const).map(name => <SceneLauncher key={name} scene={name} id={id} prompt={challenge.data!.diagramPrompts[name]} count={drawableCount(artifact[name])} frozen={frozen} invalid={missing.some(issue => issue.path === name)} />)}</div>
+        <DecisionFields artifact={artifact} disabled={disabled} change={change} invalidPaths={missing.map(issue => issue.path)} />
         <p className="small muted">Add your first-pass reasoning in <Link href={`/lab/attempts/${id}?tab=code`}>Investigate code</Link>. It is stored in the existing notes field and remains part of your submitted artifact.</p>
       </>}
     </section></div>
-    <footer className="workspace-footer"><div><SaveStatus queue={queue} /><p className="small muted">{queue.submissionUnknown ? 'Submission status is uncertain. Check the existing attempt above.' : queue.server.status !== 'draft' ? 'Submitted artifacts are immutable. A different repair requires a new attempt.' : 'Edits autosave after a short pause. Review the acknowledged revision before submission.'}</p></div><div className="actions">{frozen ? <><Link className="button primary" href={`/evidence/attempts/${id}`}>View evaluation & evidence →</Link><Link className="button" href="/evidence">My Evidence</Link></> : <><button disabled={disabled || queue.state === 'Saving'} onClick={save}>Save draft</button><button className="primary" disabled={disabled} onClick={() => setReview(true)}>Review submission →</button></>}</div></footer>
+    <footer className="workspace-footer"><div><SaveStatus queue={queue} /><p className="small muted">{queue.submissionUnknown ? 'Submission status is uncertain. Check the existing attempt above.' : queue.server.status !== 'draft' ? 'Submitted artifacts are immutable. A different repair requires a new attempt.' : 'Edits autosave after a short pause. Review the acknowledged revision before submission.'}</p></div><div className="actions">{frozen ? <><Link className="button primary" href={`/evidence/attempts/${id}`}>View evaluation & evidence →</Link><Link className="button" href="/evidence">My Evidence</Link></> : <><button disabled={disabled || queue.state === 'Saving'} onClick={save}>Save draft</button><button className="primary" disabled={disabled} onClick={beginReview}>Review submission →</button></>}</div></footer>
     <dialog ref={reviewRef} className="review-sheet" onCancel={() => setReview(false)} onClose={() => setReview(false)} aria-labelledby="review-title"><div className="section-heading"><span className="eyebrow">One immutable submission</span><button aria-label="Close submission review" disabled={queue.submitting} onClick={() => setReview(false)}>×</button></div><h2 id="review-title">Check the artifact before evaluation.</h2><p>The app saves the captured artifact, then submits that acknowledged revision. Diagram presence is checked; design quality and your reasoning require human review.</p><dl><dt>HLD / LLD</dt><dd>{drawableCount(artifact.hld)} / {drawableCount(artifact.lld)} drawable elements</dd><dt>Selected implementation</dt><dd>{variantLabel(artifact.variantId)}</dd><dt>Acknowledged revision</dt><dd>{queue.server.revision}</dd><dt>Design decisions</dt><dd>{Object.values(artifact.decisions).map(value => value ?? 'Unset').join(' · ')}</dd></dl><details><summary>View captured artifact details</summary><pre>{JSON.stringify(artifact, null, 2)}</pre></details>{missing.length > 0 ? <div className="notice warning"><strong>Complete these fields before submitting</strong><ul>{missing.map((issue, index) => <li key={index}>{issue.path}: {issue.message}</li>)}</ul></div> : <p className="notice">Both scenes, decisions and written reasoning are present. The server checks the submitted artifact again.</p>}<ErrorNotice error={submitError} /><div className="actions"><button disabled={queue.submitting} onClick={() => setReview(false)}>Keep editing</button><button className="primary" disabled={missing.length > 0 || queue.submitting} onClick={() => void submit()}>{queue.submitting ? 'Saving and submitting…' : 'Save and submit this artifact'}</button></div></dialog>
   </main>;
 }
 
-export function Investigation({ attemptId, artifact, challenge, disabled, change }: { attemptId: string; artifact: Artifact; challenge: ChallengeDto; disabled: boolean; change: (update: Partial<Artifact>) => void }) {
+export function Investigation({ attemptId, artifact, challenge, disabled, change, invalidPaths = [] }: { attemptId: string; artifact: Artifact; challenge: ChallengeDto; disabled: boolean; change: (update: Partial<Artifact>) => void; invalidPaths?: string[] }) {
   const [left, setLeft] = useState<VariantId>('credit-first');
   const [right, setRight] = useState<VariantId>('key-only');
   const [fileIndex, setFileIndex] = useState(0);
@@ -156,9 +186,9 @@ export function Investigation({ attemptId, artifact, challenge, disabled, change
     <div className="compare-controls"><label>First implementation<select aria-label="First comparison implementation" value={left} onChange={event => setLeft(event.target.value as VariantId)}>{variants.map(item => <option key={item.id} value={item.id}>{variantLabel(item.id)} · {item.label}</option>)}</select></label><label>Compare with<select aria-label="Second comparison implementation" value={right} onChange={event => setRight(event.target.value as VariantId)}>{variants.map(item => <option key={item.id} value={item.id}>{variantLabel(item.id)} · {item.label}</option>)}</select></label><label>Source file<select aria-label="Source file" value={fileIndex} onChange={event => setFileIndex(Number(event.target.value))}>{Array.from({ length: maxFiles }, (_, index) => <option key={index} value={index}>{files(left)[index]?.path ?? files(right)[index]?.path ?? `File ${index + 1}`}</option>)}</select></label></div>
     <div className="source-comparison">{[left, right].map((variant, side) => { const file = files(variant)[fileIndex]; const lines = (file?.source ?? '').split(/\r?\n/); return <section key={side}><div className="code-heading"><strong>{variantLabel(variant)} · {variant}</strong><span>{file?.path ?? 'No corresponding file'}</span></div><pre tabIndex={0} aria-label={`${side === 0 ? 'First' : 'Second'} source ${variantLabel(variant)} · ${file?.path ?? 'no file'}`}><code>{file ? lines.map((line, index) => <span className="source-line" key={index}><span className="source-line-number" aria-hidden="true">{index + 1}</span><span>{line || ' '}</span></span>) : 'No corresponding file.'}</code></pre></section>; })}</div>
     <label className="field hypothesis-field">Initial hypothesis & investigation notes <span className="muted">Saved in your artifact notes · human review</span><textarea maxLength={4000} disabled={disabled} value={artifact.comments ?? ''} onChange={event => change({ comments: event.target.value })} placeholder="Before choosing a repair, where could the retry apply a second credit? Which disclosed check would help you investigate?" /><small>{artifact.comments?.length ?? 0}/4000</small></label>
-    <fieldset className="repair-selector" disabled={disabled}><legend>Select the reviewed implementation you want evaluated</legend><p className="muted small">This is an implementation choice, not a code editor. The selected source is preserved in the challenge record; it is not evidence that you authored it.</p><div className="repair-options">{variants.map(item => <label className={artifact.variantId === item.id ? 'selected' : ''} key={item.id}><input type="radio" name="repair" value={item.id} checked={artifact.variantId === item.id} onChange={() => change({ variantId: item.id })} />{variantLabel(item.id)}<small>{item.label} · {artifact.variantId === item.id ? 'Selected for evaluation' : 'Choose this implementation'}</small></label>)}</div></fieldset>
+    <fieldset id="field-variantId" tabIndex={-1} aria-invalid={invalidPaths.includes('variantId')} className={`repair-selector ${invalidPaths.includes('variantId') ? 'field-invalid' : ''}`} disabled={disabled}><legend>Select the reviewed implementation you want evaluated</legend><p className="muted small">This is an implementation choice, not a code editor. The selected source is preserved in the challenge record; it is not evidence that you authored it.</p><div className="repair-options">{variants.map(item => <label className={artifact.variantId === item.id ? 'selected' : ''} key={item.id}><input type="radio" name="repair" value={item.id} checked={artifact.variantId === item.id} onChange={() => change({ variantId: item.id })} />{variantLabel(item.id)}<small>{item.label} · {artifact.variantId === item.id ? 'Selected for evaluation' : 'Choose this implementation'}</small></label>)}</div></fieldset>
     <details className="scenario-links"><summary>Which disclosed checks examine these questions?</summary>{challenge.testDescriptions.map(test => <p key={test.id}><strong>{test.id}</strong> · {test.description}</p>)}</details>
-    <div className="reasoning-grid"><section><span className="eyebrow">Reviewed prompt · {challenge.faultyAiSuggestion.source}</span><h3>{challenge.faultyAiSuggestion.title}</h3><blockquote>{challenge.faultyAiSuggestion.text}</blockquote><label className="field">Your critique <span className="muted">Saved for human review</span><textarea maxLength={1200} disabled={disabled} value={artifact.aiCritique ?? ''} onChange={event => change({ aiCritique: event.target.value })} placeholder="Which claim needs scrutiny? Describe a failure window and its effect." /><small>{artifact.aiCritique?.length ?? 0}/1200</small></label></section><section><span className="eyebrow">Your engineering judgment</span><h3>Why did you choose this repair?</h3><p>Connect the selected implementation to your design decisions, retry behavior and transaction boundary.</p><label className="field">Repair justification <span className="muted">Self-reported reasoning</span><textarea maxLength={1200} disabled={disabled} value={artifact.repairJustification ?? ''} onChange={event => change({ repairJustification: event.target.value })} placeholder="Explain the behavior you expect and what these tests cannot establish." /><small>{artifact.repairJustification?.length ?? 0}/1200</small></label></section></div>
+    <div className="reasoning-grid"><section><span className="eyebrow">Reviewed prompt · {challenge.faultyAiSuggestion.source}</span><h3>{challenge.faultyAiSuggestion.title}</h3><blockquote>{challenge.faultyAiSuggestion.text}</blockquote><label className="field" htmlFor="field-aiCritique">Your critique <span className="muted">Saved for human review</span><textarea id="field-aiCritique" aria-invalid={invalidPaths.includes('aiCritique')} maxLength={1200} disabled={disabled} value={artifact.aiCritique ?? ''} onChange={event => change({ aiCritique: event.target.value })} placeholder="Which claim needs scrutiny? Describe a failure window and its effect." /><small>{artifact.aiCritique?.length ?? 0}/1200</small></label></section><section><span className="eyebrow">Your engineering judgment</span><h3>Why did you choose this repair?</h3><p>Connect the selected implementation to your design decisions, retry behavior and transaction boundary.</p><label className="field" htmlFor="field-repairJustification">Repair justification <span className="muted">Self-reported reasoning</span><textarea id="field-repairJustification" aria-invalid={invalidPaths.includes('repairJustification')} maxLength={1200} disabled={disabled} value={artifact.repairJustification ?? ''} onChange={event => change({ repairJustification: event.target.value })} placeholder="Explain the behavior you expect and what these tests cannot establish." /><small>{artifact.repairJustification?.length ?? 0}/1200</small></label></section></div>
     <Link className="text-action" href={`/lab/attempts/${attemptId}?tab=design`}>Return to design and check both saved scenes →</Link>
   </>;
 }
