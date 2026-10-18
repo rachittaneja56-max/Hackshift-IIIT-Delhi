@@ -6,6 +6,7 @@
   "main": "./dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "prebuild": "npm run build --workspace=@trajectoryos/contracts",
     "build": "tsc -p tsconfig.json && node scripts/package-runtime-assets.mjs",
     "pretypecheck": "npm run build --workspace=@trajectoryos/contracts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
