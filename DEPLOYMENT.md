@@ -160,7 +160,7 @@ npm run smoke:evaluation --workspace=@trajectoryos/api
 npm run test:integration --workspace=@trajectoryos/api
 ```
 
-**Known check failure at the time this guide was written:** `npm run smoke` successfully builds contracts and the API, then fails at `scripts/smoke.mjs` because its expected migration list stops at `007_design_reviews.sql`. The runtime packager correctly includes `008_sandbox_candidate_edits.sql` too. Update the smoke assertion's expected list to include `008_sandbox_candidate_edits.sql`, review that change, and rerun the checks. Do not delete migration 008 or omit it from the deployment to satisfy the old assertion. This guide does not change the test source.
+The smoke check verifies all eight packaged SQL migrations, including `008_sandbox_candidate_edits.sql`. Whenever a numbered migration is added, update its expected list in `scripts/smoke.mjs` and rerun the release checks. The presence of a migration in the build does not prove it has been applied to your database.
 
 There are currently eight numbered migrations. Older handoffs that mention six or seven do not describe the complete current migration set. Tests and browser checks beyond the smoke failure above were not executed while preparing this guide.
 

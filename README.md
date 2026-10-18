@@ -1,94 +1,147 @@
 # TrajectoryOs
 
-TrajectoryOs is the HackShift 2026 learning workspace. It includes the integrated frontend, a seeded retry-safe credit challenge, PostgreSQL evaluation, evidence-grounded AI feedback, and an optional E2B-backed AI Debugging Lab. Browser Clerk sign-in and Excalidraw save-and-restore remain unverified integration checks.
+A résumé can say *PostgreSQL* or *system design*. It can't show what someone did when a request timed out after the database had already committed.
 
-The evaluator executes only the three reviewed variants (`atomic`, `credit-first`, `key-only`). It does not execute learner code, grade diagrams or establish authorship, general competence, or hiring suitability. The content and fixture balances are synthetic.
+**TrajectoryOs connects the lesson, the engineering decision, the test result, and the conversation that comes afterward.** It was built for HackShift 2026 at IIIT Delhi, under the Entrepreneurship & Employment theme.
 
-## Requirements and local setup
+**[Open the website](https://hackshift-iiit-delhi.vercel.app/)** · **[Two-minute demo shot list](docs/DEMO_VIDEO_SHOTLIST.md)**
 
-- Node.js 22.12 or newer
-- npm 11.6.1
-- One PostgreSQL database for both `app` and `challenge_eval` schemas
+The landing page is public. The signed-in workspace needs a running API, PostgreSQL, and Clerk; the frontend deployment alone does not make those services available.
 
-The API enforces PostgreSQL hostname and certificate verification: it normalizes an omitted `sslmode` or the legacy `prefer`, `require`, and `verify-ca` values to `verify-full`, and rejects modes that disable verification.
+## Start with a failure, not a checklist
 
-Install from the repository root:
+Imagine a client sends a credit request. The API commits the credit, but the response is lost. The client retries.
 
-```powershell
+Should the account be credited again?
+
+That question connects networking, transactions, concurrency, and system design. In TrajectoryOs a learner reads the background, draws an HLD and LLD, investigates three reviewed implementations, explains a choice, and looks at what the PostgreSQL tests actually observed. The designs, reasoning, failures, and feedback stay attached to the attempt.
+
+There is a second exercise, the **AI Debugging Lab**, about a faulty TypeScript rate limiter. Here the learner can inspect and edit an allowed source file, or direct a coding assistant with a five-prompt budget. Visible tests run in a sandbox; final grading uses a separate sandbox with private checks. This lab requires an E2B account and an OpenAI API model and is disabled by default.
+
+Neither exercise produces a universal "engineering skill score." A passing test says something about the behavior tested, not everything about the engineer.
+
+## What you can explore
+
+| Area | What happens |
+| --- | --- |
+| [Learn](/) | Read the available retry-safe writes lesson and browse the wider engineering curriculum. Additional course drafts are in `content/courses/`. |
+| [Practice](https://hackshift-iiit-delhi.vercel.app/practice) | Open the architecture/reliability exercise or the separate AI Debugging Lab. |
+| [My Work](https://hackshift-iiit-delhi.vercel.app/evidence) | Resume saved attempts and inspect completed test observations, diagrams, and feedback. Requires sign-in and the API. |
+| [Opportunities](https://hackshift-iiit-delhi.vercel.app/opportunities) | Explore a fictional job and candidate journey, or use the private JD-to-evidence review on your own completed records. |
+| [Career and mentor demo](https://hackshift-iiit-delhi.vercel.app/demo/journey) | Walk through a candidate-approved application packet, employer review, manual shortlist, and illustrative mentor feedback. |
+
+The **employer and mentor journey is fictional**. Northstar Engineering, its candidates, and its mentor are example profiles; the interactions are stored in browser-local demo state. No employer receives an application and no real mentor is contacted.
+
+Separately, the private career tool accepts a pasted job description and selected **owned, completed evidence**, then prepares a requirement comparison and an editable, source-labelled résumé draft. The mentor preview can assemble a context packet from an owned attempt; it does not send a message to a human mentor.
+
+## How it's built
+
+```text
+apps/
+  web/              React, TypeScript, Vite, Excalidraw
+  api/              Express API, PostgreSQL workers, AI and sandbox services
+packages/
+  contracts/        Shared Zod request/response schemas
+content/courses/    Draft course material
+research/           Problem framing, competitive research and pitch work
+scripts/            Build/smoke and bounded provider checks
+```
+
+The frontend authenticates with Clerk and calls the Express API with a session token. The API enforces record ownership and persists application state in **one PostgreSQL database**, using the `app` schema and a separate `challenge_eval` fixture schema.
+
+A few deliberate engineering choices:
+
+- **Revision-controlled saves.** An outdated browser tab cannot silently overwrite a newer HLD/LLD draft; the API checks `expectedRevision`.
+- **Idempotent requests.** Stable client request IDs make retries safer for creation and submission flows.
+- **Evidence before explanation.** The credit evaluator runs reviewed implementations against PostgreSQL checks. Test observations and provenance are stored separately from AI-generated explanations and advisory design reviews.
+- **Bounded code execution.** The AI Debugging Lab uses E2B sandboxes, server-validated editing/tool operations, durable jobs, and a separate final grader. It does not run submitted source in the API process.
+- **A modular monolith.** Content, attempts, evaluation, evidence, career, reviews, and sandbox services are separate modules in one deployable API. We chose that over multiple services for the scope of this project.
+
+The design reviewer extracts supported labels, shapes and connections from saved Excalidraw scenes. Its suggestions are advisory, not a formal verification of an architecture. When an AI provider is unavailable, feedback is explicitly labelled as limited/rules-based where supported.
+
+## Run it locally
+
+**Requirements:** Node.js 22.12+ and npm (the repository specifies npm 11.6.1), Git, a PostgreSQL database, and a Clerk development application.
+
+```bash
+git clone https://github.com/rachittaneja56-max/Hackshift-IIIT-Delhi.git
+cd Hackshift-IIIT-Delhi
 npm ci
 ```
 
-Copy `apps/api/.env.example` to `apps/api/.env` and fill the server values. Copy `apps/web/.env.example` to `apps/web/.env.local` and set the browser values. Keep all keys in these ignored files or hosting configuration; only the Clerk publishable key belongs in the browser.
+Create `apps/api/.env` from `apps/api/.env.example`, and `apps/web/.env.local` from `apps/web/.env.example`. Keep the database URL, Clerk secret, OpenAI key, and E2B key **server-side**; only public `VITE_*` values belong in the web environment.
 
-For the current Vite dev script, open the frontend at `http://127.0.0.1:5173`. Use `VITE_API_BASE_URL=http://127.0.0.1:3000`. The API development CORS and Clerk authorized-party defaults now use that same exact origin. `localhost` and `127.0.0.1` are different origins. If you choose another host, configure that exact origin in both `CORS_ORIGINS` and `CLERK_AUTHORIZED_PARTIES` and use it consistently in the browser.
+Minimum local configuration:
 
-Build the shared contracts before running migrations or the API. This creates `packages/contracts/dist/index.js`, which resolves the `ERR_MODULE_NOT_FOUND` error from an unbuilt workspace:
+| API (`apps/api/.env`) | Web (`apps/web/.env.local`) |
+| --- | --- |
+| `DATABASE_URL` — a **development/test** PostgreSQL database | `VITE_API_BASE_URL=http://127.0.0.1:3000` |
+| `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` | `VITE_CLERK_PUBLISHABLE_KEY` |
+| `CORS_ORIGINS=http://127.0.0.1:5173` | |
+| `CLERK_AUTHORIZED_PARTIES=http://127.0.0.1:5173` | |
+
+Use matching Clerk keys and the exact same frontend origin; `localhost` and `127.0.0.1` are different origins.
+
+Build the shared schemas and migrate **only the database you intend to use**:
 
 ```bash
 npm run build --workspace=@trajectoryos/contracts
 npm run migrate --workspace=@trajectoryos/api
 ```
 
-Run the API and web app in separate terminals:
+Start the two services in separate terminals:
 
-```powershell
+```bash
 npm run dev --workspace=@trajectoryos/api
+```
+
+```bash
 npm run dev --workspace=@trajectoryos/web
 ```
 
-API startup does not apply schema changes. `/health/live` checks process liveness; `/health/ready` checks database connectivity, the expected migrations, the published challenge manifest, and Clerk configuration.
+Open **http://127.0.0.1:5173**.
 
-The AI Debugging Lab is off by default. To use `/lab/ai-debugging`, set `SANDBOX_ENABLED=true`, `E2B_API_KEY`, `OPENAI_API_KEY`, and `SANDBOX_AGENT_MODEL` in the API environment. Keep provider keys out of `apps/web/.env.local`. See [SANDBOX_HANDOFF.md](SANDBOX_HANDOFF.md) for the lab's lifecycle, limits, API, and verification evidence.
+Check the API before debugging a blank workspace:
 
-## Implemented API
+```text
+GET http://127.0.0.1:3000/health/live
+GET http://127.0.0.1:3000/health/ready
+```
 
-All data routes are under `/api/v1` and require `Authorization: Bearer <Clerk session token>`. Success and error responses include the v0.3 envelope and `meta.isMock: false`. The available routes are:
+`/health/live` checks the process; `/health/ready` checks database access, required migrations/content, and Clerk configuration. A public landing page can render while private API features are unavailable.
 
-- `GET /courses`
-- `GET /lessons/:slug/versions/:version`
-- `GET /challenges/:slug/versions/:version`
-- `POST /attempts`, `GET /attempts`, `GET /attempts/:id`
-- `PUT /attempts/:id/draft`
-- `POST /attempts/:id/submit`
-- `GET /evaluations/:id`, `POST /evaluations/:id/retry`
-- `GET /evidence/:id`
-- `GET /evidence/:id/feedback`, `POST /evidence/:id/feedback`
+### Optional AI and sandbox setup
 
-The API derives user identity from the verified Clerk subject and returns 404 for another user's records. Create requests are idempotent by the caller's stable `clientRequestId`. Draft saves use `expectedRevision`; a stale revision returns 409 with the current revision. Submission freezes the saved artifact, queues the selected reviewed variant, and returns an evaluation ID. The worker records actual PostgreSQL observations and immutable evidence. AI feedback is explicit and cached; it reports `source: "llm"` with provider/model or `source: "rules"` when disabled or unavailable.
+The evidence-feedback provider is off by default (`AI_ENABLED=false`). To enable it, set `AI_ENABLED=true`, select `AI_PROVIDER=openai` or `mistral`, and supply the matching API key and model on the **API** service.
 
-`@trajectoryos/contracts` is the v0.3 wire-contract source. The executable browser examples, Clerk token flow, error states, retry behavior and Excalidraw scene restrictions are in [FRONTEND_INTEGRATION.md](FRONTEND_INTEGRATION.md). The API routes and lifecycle are governed by [architecture/05-api-contract.md](architecture/05-api-contract.md).
+For AI Debugging Lab sessions, also set `SANDBOX_ENABLED=true`, `E2B_API_KEY`, `OPENAI_API_KEY`, and `SANDBOX_AGENT_MODEL`. Check account quota and run a bounded live smoke before enabling public execution. A ChatGPT subscription does not supply OpenAI API credits.
 
-## AI configuration
+## Checks
 
-AI is disabled by default (`AI_ENABLED=false`); feedback then uses a deterministic, clearly labelled rule explanation. To enable the owner-selected OpenAI provider, configure `AI_ENABLED=true`, `AI_PROVIDER=openai`, `OPENAI_API_KEY`, and `OPENAI_MODEL`. `gpt-6-luna` has a recorded live inference smoke in `apps/api/verification/ai-smoke.json`.
-
-Mistral remains an optional explicit provider: set `AI_PROVIDER=mistral`, `AI_ENABLED=true`, `MISTRAL_API_KEY`, and `MISTRAL_MODEL`. Its adapter has transport-double coverage, but a live Mistral call has not been verified. Provider failure does not silently switch providers; the saved result is labelled `source: "rules"`. AI never changes the test verdict or evidence hash.
-
-## Verification and demo smoke
-
-From the repository root:
-
-```powershell
+```bash
 npm run typecheck
 npm run build
 npm test
 npm run smoke
+```
+
+Database-backed checks must run against an explicitly authorized **test database**; they create fixture records:
+
+```bash
 npm run smoke:evaluation --workspace=@trajectoryos/api
 npm run test:integration --workspace=@trajectoryos/api
 ```
 
-`smoke:evaluation` runs the real atomic T1–T7 suite once against the configured PostgreSQL database, reports wall time and per-test durations, and cleans only its generated fixture run ID. The integration suite also requires the configured PostgreSQL database. It uses generated integration identities and run UUIDs, retains immutable app history/evidence, and deletes only its own generated fixture rows. Neither command substitutes an in-memory database or fabricated evaluation output. `npm run smoke` also checks that a production build contains the reviewed challenge sources needed for published content and suite hashing.
+The repo also has optional live sandbox/model checks under `apps/api/test/`. Do not run those indiscriminately against paid services. Passing unit/build checks does not establish browser authentication, a live sandbox, or a deployed backend.
 
-For a local or deployed demo, run migrations as an explicit release step, start the API with the required production environment, check `/health/live` and `/health/ready`, then follow the browser walkthrough in [FRONTEND_INTEGRATION.md](FRONTEND_INTEGRATION.md). The browser Clerk sign-in, two real accounts, Railway/Vercel configuration, and actual Excalidraw refresh/restore still require a real browser and deployed origins; they have not been reported as verified here.
+## Deployment
 
-## Railway runtime packaging
+The [frontend](https://hackshift-iiit-delhi.vercel.app/) is hosted on Vercel. The API is designed for a persistent Node.js host such as Railway or Render, connected to Neon PostgreSQL and Clerk. A public frontend URL is **not** evidence that the API, workers, and optional AI services are deployed or ready.
 
-Build from the repository root so npm can resolve the workspaces:
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the build, migration, environment, and verification checklist. The frontend must be rebuilt after changing its `VITE_API_BASE_URL`.
 
-```powershell
-npm ci
-npm run build --workspace=@trajectoryos/contracts
-npm run build --workspace=@trajectoryos/api
-```
+## Project boundaries
 
-The API build copies the allowlisted reviewed challenge `.ts` sources to `apps/api/dist/challenge-source/` and the approved SQL files to `apps/api/dist/migrations/`. Compiled content, suite hashing, readiness and the compiled migration command read those packaged directories. Preserve `apps/api/dist/**` in the Railway runtime artifact. Set Railway's service root/build context to the repository root because this is a shared npm workspace; configure `DATABASE_URL`, both Clerk keys, exact frontend origins, `APP_COMMIT_SHA`, and `PORT`. After building and before starting the service, explicitly run `npm run migrate:built --workspace=@trajectoryos/api`; start with `npm run start --workspace=@trajectoryos/api`. Configure the Railway health path as `/health/ready`. See [Railway's shared monorepo guidance](https://docs.railway.com/deployments/monorepo). No deployment was run by this repository audit.
+This is a working engineering assessment and prototype, not an accredited certification, production ATS, or live alumni/mentor marketplace. The credit lab evaluates **reviewed code**, not arbitrary code written by the learner. The sandbox lab evaluates bounded code execution and AI interaction; its availability depends on provider configuration. The employment and mentoring demonstration is deliberately synthetic.
+
+That boundary matters to the project: the useful result isn't a single percentage. It's a record of **what someone chose, what actually ran, what failed, and what they can explain next**.

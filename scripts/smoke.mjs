@@ -74,6 +74,7 @@ assert.deepEqual(packagedMigrations.filter(name => /^\d+.*\.sql$/.test(name)).so
   "005_sandbox.sql",
   "006_sandbox_v2_recovery.sql",
   "007_design_reviews.sql",
+  "008_sandbox_candidate_edits.sql",
 ]);
 for (const path of ["package.json", "package-lock.json", "test/private.test.ts"]) {
   await readFile(new URL("../apps/api/dist/sandbox/challenge/" + path, import.meta.url), "utf8");

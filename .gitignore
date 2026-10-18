@@ -23,3 +23,11 @@ coverage/
 # OS/editor artifacts
 .DS_Store
 Thumbs.db
+
+# Local-only Codex handoffs and working notes
+/*HANDOFF*.md
+/FRONTEND_INTEGRATION.md
+/S7_RELEASE_AND_E2E_GUIDE.md
+/apps/web/FRONTEND_HANDOFF.md
+/AGENTS.md
+/START_HERE.md
