@@ -32,7 +32,7 @@ export function Header({ account = true }: { account?: boolean }) {
   const { path } = useRouter();
   if (/\/design\/(hld|lld)$/.test(path)) return null;
   const active = activePrimaryNavigation(path);
-  return <header className="site-header"><Link className="brand" href="/learn"><span className="brand-mark" aria-hidden="true">t<span>↗</span></span>Trajectory<span className="brand-os">Os</span></Link><nav aria-label="Main navigation">{primaryNavigation.map(item => <Link key={item.key} href={item.href} aria-current={active === item.key ? 'page' : undefined}>{item.label}</Link>)}</nav><div className="account"><ThemeButton />{account && <UserButton />}</div></header>;
+  return <header className="site-header"><Link className="brand" href="/" aria-label="TrajectoryOs home"><span className="brand-mark" aria-hidden="true">t<span>↗</span></span>Trajectory<span className="brand-os">Os</span></Link><nav aria-label="Main navigation">{primaryNavigation.map(item => <Link key={item.key} href={item.href} aria-current={active === item.key ? 'page' : undefined}>{item.label}</Link>)}</nav><div className="account"><ThemeButton />{account && <UserButton />}</div></header>;
 }
 export function AppRoutes() {
   const { path } = useRouter(); const attemptMatch = path.match(/^\/lab\/attempts\/([^/]+)(?:\/design\/(hld|lld))?$/); const evidenceMatch = path.match(/^\/evidence\/attempts\/([^/]+)$/); const lessonMatch = path.match(/^\/learn\/([^/]+)\/(\d+)$/);
@@ -46,7 +46,8 @@ export function AppRoutes() {
   if (path === '/mentors/preview') return <MentorPreview />;
   if (path === '/opportunities') return <OpportunitiesHome />;
   if (path === '/career/preview') return <CareerPreview />;
-  if (path === '/learn' || path === '/') return <LearnHome />;
+  if (path === '/') return <LandingPage />;
+  if (path === '/learn') return <LearnHome />;
    if (path === '/lab/ai-debugging') return <CodeLab />;
   return <main id="main-content" tabIndex={-1} className="page"><h1>That page is unavailable.</h1><Link href="/learn">Return to learning →</Link></main>;
 }
